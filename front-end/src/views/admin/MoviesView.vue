@@ -1,73 +1,69 @@
 <script setup lang="jsx">
-import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { message } from 'ant-design-vue';
+import { PlusOutlined } from '@ant-design/icons-vue';
+import request from '@/services/request';
 
-const router = useRouter();
-
-// 电影列表数据
 const movieList = ref([]);
-
-// 加载状态
 const loading = ref(false);
+const modalVisible = ref(false);
+const confirmLoading = ref(false);
+const isEdit = ref(false);
+const formRef = ref(null);
+const categoryOptions = ref([]);
+const regionOptions = ref([]);
 
 // 筛选条件
-const filters = reactive({
+const filters = ref({
   title: '',
-  category: undefined,
+  categoryId: undefined,
+  regionId: undefined,
+  year: undefined
+});
+
+const formState = ref({
+  id: undefined,
+  title: '',
+  coverBase64: '',
+  categories: [],
+  region: undefined,
   year: undefined,
-  status: undefined
+  duration: undefined,
+  rating: undefined,
+  isFree: false,
+  price: undefined
 });
 
-// 分页参数
-const pagination = reactive({
-  current: 1,
-  pageSize: 10,
-  total: 0,
-  showSizeChanger: true,
-  pageSizeOptions: ['10', '20', '50', '100']
-});
+/**
+ * @typedef {Object} UploadFile
+ * @property {string} uid
+ * @property {string} name
+ * @property {string} [url]
+ */
 
-// 电影状态选项
-const movieStatusOptions = [
-  { label: '全部', value: '' },
-  { label: '上映中', value: 'showing' },
-  { label: '即将上映', value: 'upcoming' },
-  { label: '已下架', value: 'ended' }
-];
+/** @type {import('vue').Ref<UploadFile[]>} */
+const fileList = ref([]);
 
-// 分类选项
-const categoryOptions = [
-  { label: '全部', value: '' },
-  { label: '剧情', value: 'drama' },
-  { label: '喜剧', value: 'comedy' },
-  { label: '动作', value: 'action' },
-  { label: '科幻', value: 'sci-fi' },
-  { label: '恐怖', value: 'horror' },
-  { label: '爱情', value: 'romance' },
-  { label: '动画', value: 'animation' },
-  { label: '战争', value: 'war' }
-];
+const rules = {
+  title: [{ required: true, message: '请输入电影名称' }],
+  coverBase64: [{ required: true, message: '请上传封面图' }],
+  categories: [{ required: true, message: '请选择分类' }],
+  region: [{ required: true, message: '请选择地区' }],
+  year: [{ required: true, message: '请输入上映年份' }],
+  duration: [{ required: true, message: '请输入电影时长' }],
+  rating: [{ required: true, message: '请输入评分' }],
+  price: [{ 
+    required: true, 
+    message: '请输入价格',
+    validator: (rule, value) => {
+      if (!formState.value.isFree && (!value || value <= 0)) {
+        return Promise.reject('付费电影必须设置价格')
+      }
+      return Promise.resolve()
+    }
+  }]
+};
 
-// 年份选项
-const yearOptions = [
-  { label: '全部', value: '' },
-  { label: '2023', value: '2023' },
-  { label: '2022', value: '2022' },
-  { label: '2021', value: '2021' },
-  { label: '2020', value: '2020' },
-  { label: '2019', value: '2019' },
-  { label: '2018', value: '2018' },
-  { label: '2017', value: '2017' },
-  { label: '2016', value: '2016' },
-  { label: '2015', value: '2015' },
-  { label: '2010-2014', value: '2010-2014' },
-  { label: '2000-2009', value: '2000-2009' },
-  { label: '90年代', value: '1990-1999' },
-  { label: '80年代', value: '1980-1989' },
-  { label: '更早', value: 'earlier' }
-];
-
-// 表格列定义
 const columns = [
   {
     title: 'ID',
@@ -76,238 +72,211 @@ const columns = [
     width: 80
   },
   {
-    title: '电影封面',
-    dataIndex: 'poster',
-    key: 'poster',
-    width: 100,
-    customRender: ({ text }) => {
-      return text ? <img src={text} alt="海报" style="width: 50px; height: 70px; object-fit: cover;" /> : '无封面';
-    }
+    title: '封面',
+    dataIndex: 'coverBase64',
+    key: 'cover',
+    width: 100
   },
   {
     title: '电影名称',
     dataIndex: 'title',
-    key: 'title',
-    width: 200
-  },
-  {
-    title: '导演',
-    dataIndex: 'director',
-    key: 'director',
-    width: 150
-  },
-  {
-    title: '主演',
-    dataIndex: 'actors',
-    key: 'actors',
-    width: 200,
-    customRender: ({ text }) => {
-      if (Array.isArray(text)) {
-        return text.join('、');
-      }
-      return text;
-    }
+    key: 'title'
   },
   {
     title: '分类',
-    dataIndex: 'category',
-    key: 'category',
-    width: 150,
+    dataIndex: 'categories',
+    key: 'categories',
     customRender: ({ text }) => {
-      if (Array.isArray(text)) {
-        return text.join('、');
-      }
-      return text;
+      return categoryOptions.value.filter(c => text.includes(String(c.value))).map(c => c.label).join('/');
     }
   },
   {
-    title: '上映年份',
+    title: '地区',
+    dataIndex: 'region',
+    key: 'region',
+    customRender: ({ text }) => {
+      return regionOptions.value.find(r => r.value === text)?.label || '未知';
+    }
+  },
+  {
+    title: '年份',
     dataIndex: 'year',
-    key: 'year',
-    width: 100
+    key: 'year'
+  },
+  {
+    title: '时长',
+    dataIndex: 'duration',
+    key: 'duration'
   },
   {
     title: '评分',
     dataIndex: 'rating',
-    key: 'rating',
-    width: 100
+    key: 'rating'
   },
   {
     title: '价格',
     dataIndex: 'price',
-    key: 'price',
-    width: 100,
-    customRender: ({ text }) => {
-      return `¥${text}`;
-    }
-  },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    key: 'status',
-    width: 120,
-    customRender: ({ text }) => {
-      const statusColors = {
-        showing: 'success',
-        upcoming: 'processing',
-        ended: 'default'
-      };
-      
-      const statusTexts = {
-        showing: '上映中',
-        upcoming: '即将上映',
-        ended: '已下架'
-      };
-      
-      return (
-        <a-tag color={statusColors[text]}>
-          {statusTexts[text] || text}
-        </a-tag>
-      );
-    }
+    key: 'price'
   },
   {
     title: '操作',
     key: 'action',
     fixed: 'right',
-    width: 250
+    width: 150
   }
 ];
 
-// 获取电影列表数据
-const fetchMovies = () => {
-  loading.value = true;
-  
-  // 模拟API请求
-  setTimeout(() => {
-    // 生成模拟数据
-    const mockData = [];
-    const total = 105; // 模拟总数
-    
-    for (let i = 1; i <= total; i++) {
-      const statusOptions = ['showing', 'upcoming', 'ended'];
-      const status = statusOptions[Math.floor(Math.random() * statusOptions.length)];
-      
-      const categories = [];
-      const categoryCount = Math.floor(Math.random() * 3) + 1;
-      for (let j = 0; j < categoryCount; j++) {
-        const randomCategory = categoryOptions[Math.floor(Math.random() * (categoryOptions.length - 1)) + 1].value;
-        if (!categories.includes(randomCategory)) {
-          categories.push(randomCategory);
-        }
-      }
-      
-      const actors = ['张艺谋', '刘德华', '张曼玉', '周星驰', '葛优', '章子怡', '巩俐', '黄渤', '姜文', '周冬雨', '王宝强', '赵薇'];
-      const randomActors = [];
-      const actorCount = Math.floor(Math.random() * 3) + 2;
-      for (let j = 0; j < actorCount; j++) {
-        const randomActor = actors[Math.floor(Math.random() * actors.length)];
-        if (!randomActors.includes(randomActor)) {
-          randomActors.push(randomActor);
-        }
-      }
-      
-      const directors = ['张艺谋', '冯小刚', '姜文', '王家卫', '陈凯歌', '周星驰', '徐克', '贾樟柯'];
-      const randomDirector = directors[Math.floor(Math.random() * directors.length)];
-      
-      const years = ['2023', '2022', '2021', '2020', '2019', '2018', '2017', '2016'];
-      const randomYear = years[Math.floor(Math.random() * years.length)];
-      
-      // 设置随机海报
-      const posterIndex = Math.floor(Math.random() * 10) + 1;
-      const poster = `https://picsum.photos/id/${(i * 10) + posterIndex}/200/300`;
-      
-      mockData.push({
-        id: i,
-        title: `测试电影${i}`,
-        director: randomDirector,
-        actors: randomActors,
-        category: categories,
-        year: randomYear,
-        rating: (Math.random() * 2 + 7).toFixed(1),
-        price: Math.floor(Math.random() * 20) + 10,
-        status,
-        poster
-      });
-    }
-    
-    // 筛选逻辑
-    let filteredData = [...mockData];
-    
-    if (filters.title) {
-      filteredData = filteredData.filter(movie => movie.title.includes(filters.title));
-    }
-    
-    if (filters.category) {
-      filteredData = filteredData.filter(movie => movie.category.includes(filters.category));
-    }
-    
-    if (filters.year) {
-      filteredData = filteredData.filter(movie => movie.year === filters.year);
-    }
-    
-    if (filters.status) {
-      filteredData = filteredData.filter(movie => movie.status === filters.status);
-    }
-    
-    // 分页
-    const start = (pagination.current - 1) * pagination.pageSize;
-    const end = start + pagination.pageSize;
-    const paginatedData = filteredData.slice(start, end);
-    
-    movieList.value = paginatedData;
-    pagination.total = filteredData.length;
-    loading.value = false;
-  }, 800);
+const yearOptions = Array.from({ length: 2024 - 1900 + 1 }, (_, i) => ({
+  label: `${1900 + i}`,
+  value: 1900 + i
+})).reverse();
+
+const pagination = ref({
+  current: 1,
+  pageSize: 10,
+  total: 0
+});
+
+// 获取电影列表
+const fetchMovies = async () => {
+  const { data } = await request.get('/movies');
+  movieList.value = data;
+  pagination.value.total = data.length;
 };
 
-// 表格分页、排序、筛选变化时的回调
-const handleTableChange = (pag) => {
-  pagination.current = pag.current;
-  pagination.pageSize = pag.pageSize;
-  fetchMovies();
+// 获取分类列表
+const fetchCategories = async () => {
+  const { data } = await request.get('/categories');
+  categoryOptions.value = data.map(item => ({
+    label: item.name,
+    value: item.id
+  }));
 };
 
-// 查询
-const handleSearch = () => {
-  pagination.current = 1;
-  fetchMovies();
+// 获取地区列表
+const fetchRegions = async () => {
+  const { data } = await request.get('/regions');
+  regionOptions.value = data.map(item => ({
+    label: item.name,
+    value: item.id
+  }));
 };
 
-// 重置筛选
-const handleReset = () => {
-  filters.title = '';
-  filters.category = undefined;
-  filters.year = undefined;
-  filters.status = undefined;
-  pagination.current = 1;
-  fetchMovies();
+const beforeUpload = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      formState.value.coverBase64 = reader.result;
+      resolve(false);
+    };
+    reader.onerror = (error) => {
+      reject(error);
+    };
+  });
 };
 
-// 添加电影
+const resetForm = () => {
+  formState.value.id = null;
+  formState.value.title = '';
+  formState.value.coverBase64 = '';
+  formState.value.categories = [];
+  formState.value.region = undefined;
+  formState.value.year = new Date().getFullYear();
+  formState.value.duration = 90;
+  formState.value.rating = 0;
+  formState.value.isFree = false;
+  formState.value.price = 0;
+};
+
 const handleAdd = () => {
-  router.push('/admin/movie/edit');
+  isEdit.value = false;
+  resetForm();
+  modalVisible.value = true;
 };
 
-// 编辑电影
 const handleEdit = (record) => {
-  router.push(`/admin/movie/edit/${record.id}`);
+  isEdit.value = true;
+  Object.assign(formState.value, {
+    ...record,
+    categories: record.categories.split(',').map(Number),
+    region: record.region
+  });
+  modalVisible.value = true;
 };
 
-// 删除电影
-const handleDelete = (record) => {
-  console.log('删除电影', record);
-  // TODO: 实现删除电影功能
+const handleSubmit = async () => {
+  try {
+    await formRef.value.validate();
+    confirmLoading.value = true;
+
+    const data = {
+      ...formState.value,
+      price: formState.value.isFree ? 0 : formState.value.price
+    };
+
+    if (isEdit.value) {
+      await request.put(`/movies/${formState.value.id}`, {
+        ...data,
+        categories: String(data.categories)
+      });
+      message.success('更新成功');
+    } else {
+      await request.post('/movies', {
+        ...data,
+        categories: String(data.categories)
+      });
+      message.success('创建成功');
+    }
+
+    modalVisible.value = false;
+    fetchMovies();
+  } catch (error) {
+    console.error('操作失败:', error);
+  } finally {
+    confirmLoading.value = false;
+  }
 };
 
-// 修改电影状态
-const handleChangeStatus = (record, newStatus) => {
-  console.log('修改电影状态', record, newStatus);
-  // TODO: 实现修改电影状态功能
+const handleDelete = async (record) => {
+  try {
+    await request.delete(`/movies/${record.id}`);
+    message.success('删除成功');
+    fetchMovies();
+  } catch (error) {
+    message.error('删除失败');
+  }
+};
+
+const handleSearch = () => {
+  pagination.value.current = 1;
+  fetchMovies();
+};
+
+const handleReset = () => {
+  filters.value.title = '';
+  filters.value.categoryId = undefined;
+  filters.value.regionId = undefined;
+  filters.value.year = undefined;
+  pagination.value.current = 1;
+  fetchMovies();
+};
+
+const closeModal = () => {
+  modalVisible.value = false;
+  formRef.value?.resetFields();
+};
+
+const handleTableChange = (pag) => {
+  pagination.value.current = pag.current;
+  pagination.value.pageSize = pag.pageSize;
+  fetchMovies();
 };
 
 onMounted(() => {
   fetchMovies();
+  fetchCategories();
+  fetchRegions();
 });
 </script>
 
@@ -335,11 +304,21 @@ onMounted(() => {
           
           <a-form-item label="分类">
             <a-select
-              v-model:value="filters.category"
+              v-model:value="filters.categoryId"
               placeholder="请选择分类"
               style="width: 120px"
               allowClear
               :options="categoryOptions"
+            />
+          </a-form-item>
+          
+          <a-form-item label="地区">
+            <a-select
+              v-model:value="filters.regionId"
+              placeholder="请选择地区"
+              style="width: 120px"
+              allowClear
+              :options="regionOptions"
             />
           </a-form-item>
           
@@ -350,16 +329,6 @@ onMounted(() => {
               style="width: 120px"
               allowClear
               :options="yearOptions"
-            />
-          </a-form-item>
-          
-          <a-form-item label="状态">
-            <a-select
-              v-model:value="filters.status"
-              placeholder="请选择状态"
-              style="width: 120px"
-              allowClear
-              :options="movieStatusOptions"
             />
           </a-form-item>
           
@@ -380,36 +349,27 @@ onMounted(() => {
         :pagination="pagination"
         @change="handleTableChange"
         row-key="id"
-        scroll={{ x: 1300 }}
+        :scroll="{ x: 1300 }"
       >
         <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'cover'">
+            <img 
+              v-if="record.coverBase64" 
+              :src="record.coverBase64" 
+              alt="封面" 
+              style="width: 50px; height: 70px; object-fit: cover;"
+            />
+            <span v-else>无封面</span>
+          </template>
+          <template v-if="column.key === 'duration'">
+            {{ record.duration }}分钟
+          </template>
+          <template v-if="column.key === 'price'">
+            {{ record.isFree ? '免费' : `¥${record.price}` }}
+          </template>
           <template v-if="column.key === 'action'">
             <a-space>
               <a-button type="link" size="small" @click="() => handleEdit(record)">编辑</a-button>
-              
-              <a-dropdown>
-                <a-button type="link" size="small">
-                  状态
-                  <down-outlined />
-                </a-button>
-                <template #overlay>
-                  <a-menu>
-                    <a-menu-item @click="() => handleChangeStatus(record, 'showing')">
-                      <check-circle-outlined style="color: #52c41a; margin-right: 8px;" />
-                      上映中
-                    </a-menu-item>
-                    <a-menu-item @click="() => handleChangeStatus(record, 'upcoming')">
-                      <clock-circle-outlined style="color: #1890ff; margin-right: 8px;" />
-                      即将上映
-                    </a-menu-item>
-                    <a-menu-item @click="() => handleChangeStatus(record, 'ended')">
-                      <stop-outlined style="color: #bfbfbf; margin-right: 8px;" />
-                      已下架
-                    </a-menu-item>
-                  </a-menu>
-                </template>
-              </a-dropdown>
-              
               <a-popconfirm
                 title="确定要删除这部电影吗?"
                 ok-text="是"
@@ -422,6 +382,110 @@ onMounted(() => {
           </template>
         </template>
       </a-table>
+
+      <!-- 添加/编辑电影弹窗 -->
+      <a-modal
+        :title="isEdit ? '编辑电影' : '添加电影'"
+        :open="modalVisible"
+        :confirm-loading="confirmLoading"
+        @ok="handleSubmit"
+        @cancel="closeModal"
+        width="800px"
+      >
+        <a-form
+          ref="formRef"
+          :model="formState"
+          :rules="rules"
+          :label-col="{ span: 4 }"
+          :wrapper-col="{ span: 20 }"
+        >
+          <a-form-item label="电影名称" name="title">
+            <a-input v-model:value="formState.title" placeholder="请输入电影名称" />
+          </a-form-item>
+
+          <a-form-item label="电影封面" name="coverBase64">
+            <a-upload
+              v-model:file-list="fileList"
+              list-type="picture-card"
+              :show-upload-list="false"
+              :before-upload="beforeUpload"
+            >
+              <img 
+                v-if="formState.coverBase64" 
+                :src="formState.coverBase64" 
+                alt="封面"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+              <div v-else>
+                <plus-outlined />
+                <div style="margin-top: 8px">上传封面</div>
+              </div>
+            </a-upload>
+          </a-form-item>
+
+          <a-form-item label="分类" name="categories">
+            <a-select
+              v-model:value="formState.categories"
+              mode="multiple"
+              placeholder="请选择分类"
+              :options="categoryOptions"
+            />
+          </a-form-item>
+
+          <a-form-item label="地区" name="region">
+            <a-select
+              v-model:value="formState.region"
+              placeholder="请选择地区"
+              :options="regionOptions"
+            />
+          </a-form-item>
+
+          <a-form-item label="上映年份" name="year">
+            <a-select
+              v-model:value="formState.year"
+              placeholder="请选择年份"
+              :options="yearOptions"
+            />
+          </a-form-item>
+
+          <a-form-item label="时长" name="duration">
+            <a-input-number 
+              v-model:value="formState.duration" 
+              placeholder="请输入电影时长"
+              addon-after="分钟"
+              :min="1"
+            />
+          </a-form-item>
+
+          <a-form-item label="评分" name="rating">
+            <a-input-number 
+              v-model:value="formState.rating" 
+              placeholder="请输入评分"
+              :min="0"
+              :max="10"
+              :step="0.1"
+            />
+          </a-form-item>
+
+          <a-form-item label="价格设置">
+            <a-space>
+              <a-switch 
+                v-model:checked="formState.isFree"
+                checked-children="免费"
+                un-checked-children="付费"
+              />
+              <a-input-number
+                v-if="!formState.isFree"
+                v-model:value="formState.price"
+                placeholder="请输入价格"
+                :min="0.01"
+                :step="0.01"
+                addon-before="¥"
+              />
+            </a-space>
+          </a-form-item>
+        </a-form>
+      </a-modal>
     </div>
   </div>
 </template>
