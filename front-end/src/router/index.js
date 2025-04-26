@@ -132,6 +132,12 @@ const router = createRouter({
       component: () => import('../views/admin/MessagesView.vue'),
       meta: { title: '留言管理', requireAdmin: true },
     },
+    {
+      path: '/admin/carousel',
+      name: 'admin-carousel',
+      component: () => import('../views/admin/CarouselManagement.vue'),
+      meta: { title: '轮播管理', requireAdmin: true },
+    },
 
     // 404路由
     {

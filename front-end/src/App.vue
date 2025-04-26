@@ -13,6 +13,7 @@ import {
   DashboardOutlined,
   LogoutOutlined,
   MessageOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons-vue'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 
@@ -59,6 +60,7 @@ const adminMenuItems = [
   { key: 'admin-orders', title: '订单管理', icon: CrownOutlined, path: '/admin/orders' },
   { key: 'admin-comments', title: '评论管理', icon: RocketOutlined, path: '/admin/comments' },
   { key: 'admin-messages', title: '留言管理', icon: MessageOutlined, path: '/admin/messages' },
+  { key: 'admin-carousel', title: '轮播管理', icon: PlayCircleOutlined, path: '/admin/carousel' },
 ]
 
 const handleMenuClick = (item) => {
@@ -254,9 +256,10 @@ body {
 }
 
 .logo-title {
-  font-size: 20px;
-  font-weight: bold;
-  background: linear-gradient(90deg, #1890ff, #722ed1);
+  background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .menu-section {

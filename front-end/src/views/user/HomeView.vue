@@ -1,15 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from '@/services/request'
 
+const carousels = ref([])
 const router = useRouter()
-
-// 模拟数据
-const carouselImages = ref([
-  { id: 1, url: 'https://via.placeholder.com/1200x400?text=电影1', link: '/movie/1' },
-  { id: 2, url: 'https://via.placeholder.com/1200x400?text=电影2', link: '/movie/2' },
-  { id: 3, url: 'https://via.placeholder.com/1200x400?text=电影3', link: '/movie/3' },
-])
 
 const topRatedMovies = ref([
   {
@@ -108,11 +103,21 @@ const latestMovies = ref([
   },
 ])
 
+const fetchCarousels = async () => {
+  try {
+    const response = await axios.get('/carousels')
+    carousels.value = response.data
+  } catch (error) {
+    console.error('获取轮播图失败:', error)
+  }
+}
+
 const goToMovie = (id) => {
   router.push(`/movie/${id}`)
 }
 
 onMounted(() => {
+  fetchCarousels()
   // 在这里可以加载数据
 })
 </script>
@@ -122,8 +127,11 @@ onMounted(() => {
     <!-- 轮播图 -->
     <div class="carousel-section content-card">
       <a-carousel autoplay>
-        <div v-for="item in carouselImages" :key="item.id" class="carousel-item">
-          <img :src="item.url" @click="() => goToMovie(item.id)" class="carousel-image" />
+        <div v-for="item in carousels" :key="item.id" class="carousel-item">
+          <div class="carousel-content">
+            <img :src="item.imageBase64" :alt="item.title" class="carousel-image" />
+            <div class="carousel-title">{{ item.title }}</div>
+          </div>
         </div>
       </a-carousel>
     </div>
@@ -246,10 +254,28 @@ onMounted(() => {
   cursor: pointer;
 }
 
+.carousel-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.carousel-title {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: white;
+  font-size: 18px;
+  text-align: left;
+}
+
 .carousel-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .movie-grid {
