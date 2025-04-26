@@ -6,103 +6,11 @@ import axios from '@/services/request'
 const carousels = ref([])
 const router = useRouter()
 
-const topRatedMovies = ref([
-  {
-    id: 1,
-    title: '肖申克的救赎',
-    cover: 'https://via.placeholder.com/300x450?text=肖申克的救赎',
-    rating: 9.7,
-    price: 15,
-    actors: ['蒂姆·罗宾斯', '摩根·弗里曼'],
-  },
-  {
-    id: 2,
-    title: '霸王别姬',
-    cover: 'https://via.placeholder.com/300x450?text=霸王别姬',
-    rating: 9.6,
-    price: 12,
-    actors: ['张国荣', '巩俐'],
-  },
-  {
-    id: 3,
-    title: '阿甘正传',
-    cover: 'https://via.placeholder.com/300x450?text=阿甘正传',
-    rating: 9.5,
-    price: 14,
-    actors: ['汤姆·汉克斯', '罗宾·怀特'],
-  },
-  {
-    id: 4,
-    title: '泰坦尼克号',
-    cover: 'https://via.placeholder.com/300x450?text=泰坦尼克号',
-    rating: 9.4,
-    price: 18,
-    actors: ['莱昂纳多·迪卡普里奥', '凯特·温斯莱特'],
-  },
-  {
-    id: 5,
-    title: '这个杀手不太冷',
-    cover: 'https://via.placeholder.com/300x450?text=这个杀手不太冷',
-    rating: 9.4,
-    price: 10,
-    actors: ['让·雷诺', '娜塔莉·波特曼'],
-  },
-])
+const topRatedMovies = ref([])
+const freeMovies = ref([])
+const latestMovies = ref([])
 
-const specialOffers = ref([
-  {
-    id: 6,
-    title: '当幸福来敲门',
-    cover: 'https://via.placeholder.com/300x450?text=当幸福来敲门',
-    originalPrice: 20,
-    price: 5,
-    discount: 7.5,
-  },
-  {
-    id: 7,
-    title: '楚门的世界',
-    cover: 'https://via.placeholder.com/300x450?text=楚门的世界',
-    originalPrice: 18,
-    price: 4.5,
-    discount: 7.5,
-  },
-  {
-    id: 8,
-    title: '星际穿越',
-    cover: 'https://via.placeholder.com/300x450?text=星际穿越',
-    originalPrice: 22,
-    price: 6,
-    discount: 7.3,
-  },
-])
-
-const latestMovies = ref([
-  {
-    id: 9,
-    title: '电影9',
-    cover: 'https://via.placeholder.com/300x450?text=电影9',
-    releaseDate: '2023-05-15',
-  },
-  {
-    id: 10,
-    title: '电影10',
-    cover: 'https://via.placeholder.com/300x450?text=电影10',
-    releaseDate: '2023-05-10',
-  },
-  {
-    id: 11,
-    title: '电影11',
-    cover: 'https://via.placeholder.com/300x450?text=电影11',
-    releaseDate: '2023-05-05',
-  },
-  {
-    id: 12,
-    title: '电影12',
-    cover: 'https://via.placeholder.com/300x450?text=电影12',
-    releaseDate: '2023-05-01',
-  },
-])
-
+// 获取轮播图
 const fetchCarousels = async () => {
   try {
     const response = await axios.get('/carousels')
@@ -112,13 +20,35 @@ const fetchCarousels = async () => {
   }
 }
 
+// 获取所有电影数据并处理
+const fetchAllMovies = async () => {
+  try {
+    const { data } = await axios.get('/movies')
+    
+    // 高分榜：按评分排序，取前5个
+    topRatedMovies.value = [...data]
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 5)
+    
+    // 特价区：筛选免费电影
+    freeMovies.value = data.filter(movie => movie.isFree)
+    
+    // 最新发布：按ID倒序排序，取前4个
+    latestMovies.value = [...data]
+      .sort((a, b) => b.id - a.id)
+      .slice(0, 4)
+  } catch (error) {
+    console.error('获取电影数据失败:', error)
+  }
+}
+
 const goToMovie = (id) => {
   router.push(`/movie/${id}`)
 }
 
 onMounted(() => {
   fetchCarousels()
-  // 在这里可以加载数据
+  fetchAllMovies()
 })
 </script>
 
@@ -140,7 +70,6 @@ onMounted(() => {
     <div class="section content-card">
       <div class="section-header">
         <h2 class="section-title">高分榜</h2>
-        <a-button type="link" @click="router.push('/ranking')">查看全部</a-button>
       </div>
       <div class="movie-grid">
         <div
@@ -150,44 +79,42 @@ onMounted(() => {
           @click="() => goToMovie(movie.id)"
         >
           <div class="movie-cover-wrapper">
-            <img :src="movie.cover" alt="" class="movie-cover" />
+            <img :src="movie.coverBase64" alt="" class="movie-cover" />
             <div class="movie-rating">
               <a-tag color="#f50">{{ movie.rating }}分</a-tag>
             </div>
           </div>
           <div class="movie-info">
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
-            <p class="movie-actors text-ellipsis">{{ movie.actors.join(' / ') }}</p>
-            <p class="movie-price price-tag">¥{{ movie.price }}</p>
+            <p class="movie-price" :class="{ 'free': movie.isFree }">
+              {{ movie.isFree ? '免费' : `¥${movie.price}` }}
+            </p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 特价区 -->
+    <!-- 免费专区 -->
     <div class="section content-card">
       <div class="section-header">
-        <h2 class="section-title">特价优惠</h2>
+        <h2 class="section-title">特价专区</h2>
       </div>
       <div class="movie-grid">
         <div
-          v-for="movie in specialOffers"
+          v-for="movie in freeMovies"
           :key="movie.id"
           class="movie-card hover-scale"
           @click="() => goToMovie(movie.id)"
         >
           <div class="movie-cover-wrapper">
-            <img :src="movie.cover" alt="" class="movie-cover" />
+            <img :src="movie.coverBase64" alt="" class="movie-cover" />
             <div class="movie-discount">
-              <a-tag color="#87d068">{{ movie.discount }}折</a-tag>
+              <a-tag color="#87d068">免费</a-tag>
             </div>
           </div>
           <div class="movie-info">
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
-            <p class="movie-price">
-              <span class="price-tag">¥{{ movie.price }}</span>
-              <span class="original-price">¥{{ movie.originalPrice }}</span>
-            </p>
+            <p class="movie-price free">免费</p>
           </div>
         </div>
       </div>
@@ -197,7 +124,6 @@ onMounted(() => {
     <div class="section content-card">
       <div class="section-header">
         <h2 class="section-title">最新发布</h2>
-        <a-button type="link" @click="router.push('/movies')">查看全部</a-button>
       </div>
       <div class="movie-grid">
         <div
@@ -207,13 +133,13 @@ onMounted(() => {
           @click="() => goToMovie(movie.id)"
         >
           <div class="movie-cover-wrapper">
-            <img :src="movie.cover" alt="" class="movie-cover" />
-            <div class="movie-date">
-              <a-tag color="#108ee9">{{ movie.releaseDate }}</a-tag>
-            </div>
+            <img :src="movie.coverBase64" alt="" class="movie-cover" />
           </div>
           <div class="movie-info">
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
+            <p class="movie-price" :class="{ 'free': movie.isFree }">
+              {{ movie.isFree ? '免费' : `¥${movie.price}` }}
+            </p>
           </div>
         </div>
       </div>
@@ -304,8 +230,7 @@ onMounted(() => {
 }
 
 .movie-rating,
-.movie-discount,
-.movie-date {
+.movie-discount {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -321,21 +246,15 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.movie-actors {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  margin: 0 0 4px;
-}
-
 .movie-price {
   margin: 4px 0 0;
+  font-weight: bold;
+  font-size: 16px;
+  color: #ff4d4f;  /* 付费电影显示红色 */
 }
 
-.original-price {
-  margin-left: 8px;
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  text-decoration: line-through;
+.movie-price.free {
+  color: #52c41a;  /* 免费电影显示绿色 */
 }
 
 @media (max-width: 576px) {

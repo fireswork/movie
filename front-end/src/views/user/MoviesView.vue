@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import request from '@/services/request'
 
 const router = useRouter()
 
@@ -8,87 +9,19 @@ const router = useRouter()
 const filterForm = reactive({
   categories: [],
   region: undefined,
-  yearRange: [1970, 2023],
+  yearRange: [1970, new Date().getFullYear()],
   actor: '',
   durationRange: [0, 300],
   priceRange: [0, 100],
 })
 
-// 模拟分类数据
-const categories = ref([
-  { label: '动作', value: 'action' },
-  { label: '喜剧', value: 'comedy' },
-  { label: '爱情', value: 'romance' },
-  { label: '科幻', value: 'scifi' },
-  { label: '恐怖', value: 'horror' },
-  { label: '动画', value: 'animation' },
-  { label: '剧情', value: 'drama' },
-  { label: '战争', value: 'war' },
-])
+// 分类和地区选项
+const categories = ref([])
+const regions = ref([])
 
-// 模拟地区数据
-const regions = ref([
-  { label: '全部', value: '' },
-  { label: '中国大陆', value: 'china' },
-  { label: '中国香港', value: 'hongkong' },
-  { label: '中国台湾', value: 'taiwan' },
-  { label: '美国', value: 'usa' },
-  { label: '韩国', value: 'korea' },
-  { label: '日本', value: 'japan' },
-  { label: '法国', value: 'france' },
-  { label: '英国', value: 'uk' },
-])
-
-// 模拟电影列表数据
-const movies = ref([
-  {
-    id: 1,
-    title: '肖申克的救赎',
-    cover: 'https://via.placeholder.com/300x450?text=肖申克的救赎',
-    rating: 9.7,
-    price: 15,
-    actors: ['蒂姆·罗宾斯', '摩根·弗里曼'],
-    categories: ['剧情', '犯罪'],
-    region: '美国',
-    year: 1994,
-    duration: 142,
-  },
-  {
-    id: 2,
-    title: '霸王别姬',
-    cover: 'https://via.placeholder.com/300x450?text=霸王别姬',
-    rating: 9.6,
-    price: 12,
-    actors: ['张国荣', '巩俐'],
-    categories: ['剧情', '爱情'],
-    region: '中国香港',
-    year: 1993,
-    duration: 171,
-  },
-  // 添加更多电影...
-])
-
-for (let i = 3; i <= 20; i++) {
-  const randomCategory = categories.value[Math.floor(Math.random() * categories.value.length)].label
-  const randomRegion = regions.value[Math.floor(Math.random() * regions.value.length)].label
-  const randomYear = Math.floor(Math.random() * (2023 - 1970)) + 1970
-  const randomDuration = Math.floor(Math.random() * 100) + 90
-  const randomPrice = Math.floor(Math.random() * 20) + 5
-  const randomRating = (Math.random() * 2 + 7).toFixed(1)
-
-  movies.value.push({
-    id: i,
-    title: `电影${i}`,
-    cover: `https://via.placeholder.com/300x450?text=电影${i}`,
-    rating: randomRating,
-    price: randomPrice,
-    actors: ['演员A', '演员B'],
-    categories: [randomCategory],
-    region: randomRegion,
-    year: randomYear,
-    duration: randomDuration,
-  })
-}
+// 电影列表
+const movies = ref([])
+const allMovies = ref([]) // 用于存储所有电影，便于筛选
 
 // 排序选项
 const sortOptions = [
@@ -104,10 +37,107 @@ const currentSort = ref('popularity')
 const pagination = reactive({
   current: 1,
   pageSize: 12,
-  total: movies.value.length,
+  total: 0,
   showSizeChanger: true,
   pageSizeOptions: ['12', '24', '48', '96'],
 })
+
+// 获取分类列表
+const fetchCategories = async () => {
+  try {
+    const { data } = await request.get('/categories')
+    categories.value = data.map(item => ({
+      label: item.name,
+      value: item.id.toString()
+    }))
+  } catch (error) {
+    console.error('获取分类列表失败:', error)
+  }
+}
+
+// 获取地区列表
+const fetchRegions = async () => {
+  try {
+    const { data } = await request.get('/regions')
+    regions.value = [
+      { label: '全部', value: '' },
+      ...data.map(item => ({
+        label: item.name,
+        value: item.id.toString()
+      }))
+    ]
+  } catch (error) {
+    console.error('获取地区列表失败:', error)
+  }
+}
+
+// 获取电影列表
+const fetchMovies = async () => {
+  try {
+    const { data } = await request.get('/movies')
+    allMovies.value = data
+    filterMovies()
+  } catch (error) {
+    console.error('获取电影列表失败:', error)
+  }
+}
+
+// 筛选电影
+const filterMovies = () => {
+  let filteredMovies = [...allMovies.value]
+
+  // 按分类筛选
+  if (filterForm.categories.length > 0) {
+    filteredMovies = filteredMovies.filter(movie => 
+      filterForm.categories.some(cat => movie.categories.includes(cat))
+    )
+  }
+
+  // 按地区筛选
+  if (filterForm.region) {
+    filteredMovies = filteredMovies.filter(movie => 
+      movie.region === filterForm.region
+    )
+  }
+
+  // 按年份范围筛选
+  filteredMovies = filteredMovies.filter(movie => 
+    movie.year >= filterForm.yearRange[0] && movie.year <= filterForm.yearRange[1]
+  )
+
+  // 按时长范围筛选
+  filteredMovies = filteredMovies.filter(movie => 
+    movie.duration >= filterForm.durationRange[0] && movie.duration <= filterForm.durationRange[1]
+  )
+
+  // 按价格范围筛选
+  filteredMovies = filteredMovies.filter(movie => {
+    const price = movie.isFree ? 0 : movie.price
+    return price >= filterForm.priceRange[0] && price <= filterForm.priceRange[1]
+  })
+
+  // 按排序方式排序
+  switch (currentSort.value) {
+    case 'rating':
+      filteredMovies.sort((a, b) => b.rating - a.rating)
+      break
+    case 'duration':
+      filteredMovies.sort((a, b) => b.duration - a.duration)
+      break
+    case 'price-asc':
+      filteredMovies.sort((a, b) => (a.isFree ? 0 : a.price) - (b.isFree ? 0 : b.price))
+      break
+    case 'price-desc':
+      filteredMovies.sort((a, b) => (b.isFree ? 0 : b.price) - (a.isFree ? 0 : a.price))
+      break
+    default:
+      // 默认按ID倒序（最新）排序
+      filteredMovies.sort((a, b) => b.id - a.id)
+  }
+
+  movies.value = filteredMovies
+  pagination.total = filteredMovies.length
+}
 
 const handlePageChange = (page, pageSize) => {
   pagination.current = page
@@ -116,17 +146,21 @@ const handlePageChange = (page, pageSize) => {
 
 const handleSortChange = (value) => {
   currentSort.value = value
-  // 在这里实现排序逻辑
+  filterMovies()
+}
+
+const handleFilter = () => {
+  filterMovies()
 }
 
 const handleResetFilter = () => {
-  // 重置筛选条件
   filterForm.categories = []
   filterForm.region = undefined
-  filterForm.yearRange = [1970, 2023]
+  filterForm.yearRange = [1970, new Date().getFullYear()]
   filterForm.actor = ''
   filterForm.durationRange = [0, 300]
   filterForm.priceRange = [0, 100]
+  filterMovies()
 }
 
 const goToMovie = (id) => {
@@ -134,7 +168,9 @@ const goToMovie = (id) => {
 }
 
 onMounted(() => {
-  // 可以在这里加载电影列表数据
+  fetchCategories()
+  fetchRegions()
+  fetchMovies()
 })
 </script>
 
@@ -168,7 +204,7 @@ onMounted(() => {
 
           <a-col :span="24" :md="8">
             <a-form-item label="年份范围">
-              <a-slider v-model:value="filterForm.yearRange" range :min="1970" :max="2023" />
+              <a-slider v-model:value="filterForm.yearRange" range :min="1970" :max="2024" />
             </a-form-item>
           </a-col>
 
@@ -194,7 +230,7 @@ onMounted(() => {
         <a-row :gutter="16">
           <a-col :span="24">
             <div class="filter-buttons">
-              <a-button type="primary">筛选</a-button>
+              <a-button type="primary" @click="handleFilter">筛选</a-button>
               <a-button @click="handleResetFilter">重置</a-button>
             </div>
           </a-col>
@@ -220,7 +256,7 @@ onMounted(() => {
           @click="() => goToMovie(movie.id)"
         >
           <div class="movie-cover-wrapper">
-            <img :src="movie.cover" alt="" class="movie-cover" />
+            <img :src="movie.coverBase64" alt="" class="movie-cover" />
             <div class="movie-rating">
               <a-tag color="#f50">{{ movie.rating }}分</a-tag>
             </div>
@@ -228,10 +264,11 @@ onMounted(() => {
           <div class="movie-info">
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
             <p class="movie-meta text-ellipsis">
-              {{ movie.categories.join('/') }} | {{ movie.region }} | {{ movie.year }}
+              {{ movie.duration }}分钟 | {{ movie.year }}
             </p>
-            <p class="movie-actors text-ellipsis">{{ movie.actors.join(' / ') }}</p>
-            <p class="movie-price price-tag">¥{{ movie.price }}</p>
+            <p class="movie-price" :class="{ 'free': movie.isFree }">
+              {{ movie.isFree ? '免费' : `¥${movie.price}` }}
+            </p>
           </div>
         </div>
       </div>
@@ -277,6 +314,10 @@ onMounted(() => {
 .movie-card {
   cursor: pointer;
   transition: transform 0.2s;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .movie-cover-wrapper {
@@ -298,20 +339,30 @@ onMounted(() => {
 }
 
 .movie-info {
-  padding: 8px 4px;
+  padding: 12px;
 }
 
 .movie-title {
-  margin: 8px 0 4px;
+  margin: 0 0 8px;
   font-size: 16px;
   font-weight: 500;
 }
 
-.movie-meta,
-.movie-actors {
-  font-size: 12px;
+.movie-meta {
+  font-size: 13px;
   color: var(--text-color-secondary);
-  margin: 0 0 4px;
+  margin: 0 0 8px;
+}
+
+.movie-price {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ff4d4f;
+  margin: 0;
+}
+
+.movie-price.free {
+  color: #52c41a;
 }
 
 .pagination-section {
