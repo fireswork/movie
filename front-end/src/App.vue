@@ -14,15 +14,24 @@ import {
   LogoutOutlined,
   MessageOutlined,
 } from '@ant-design/icons-vue'
+import zhCN from 'ant-design-vue/es/locale/zh_CN'
 
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
 
-const userInfos = JSON.parse(localStorage.getItem('user')) || {}
 // 根据存储的用户信息判断是否是管理员
-const isAdmin = ref(true)
-const userInfo = ref(userInfos)
+const isAdmin = ref(false)
+const userInfo = ref({})
+
+onMounted(() => {
+  const storedUser = localStorage.getItem('user')
+  if (storedUser) {
+    userInfo.value = JSON.parse(storedUser)
+    isAdmin.value = userInfo.value.admin
+    console.log('userInfo', userInfo.value)
+  }
+})
 
 // 判断当前是否是登录/注册页面
 const isAuthPage = computed(() => {
@@ -63,123 +72,125 @@ const logout = () => {
 </script>
 
 <template>
-  <!-- 登录/注册页面不显示布局 -->
-  <template v-if="isAuthPage">
-    <RouterView />
-  </template>
+  <a-config-provider :locale="zhCN">
+    <!-- 登录/注册页面不显示布局 -->
+    <template v-if="isAuthPage">
+      <RouterView />
+    </template>
 
-  <!-- 管理员使用标准管理系统布局 -->
-  <a-layout v-else-if="isAdmin" class="admin-layout" style="min-height: 100vh">
-    <a-layout-sider
-      v-model:collapsed="collapsed"
-      collapsible
-      class="animate__animated animate__slideInLeft"
-    >
-      <div class="logo">
-        <h2 v-if="!collapsed">电影管理系统</h2>
-        <h2 v-else>影</h2>
-      </div>
-      <a-menu theme="dark" mode="inline" :selected-keys="[route.name]">
-        <a-menu-item
-          v-for="item in adminMenuItems"
-          :key="item.key"
-          @click="() => handleMenuClick(item)"
-        >
-          <template #icon><component :is="item.icon" /></template>
-          <span>{{ item.title }}</span>
-        </a-menu-item>
-      </a-menu>
-    </a-layout-sider>
-    <a-layout>
-      <a-layout-header class="admin-header">
-        <a-space>
-          <a-dropdown>
-            <a-button type="text">
-              <a-space>
-                <a-avatar size="small" :style="{ backgroundColor: '#87d068' }" icon="user" />
-                <span>管理员</span>
-              </a-space>
-            </a-button>
-            <template #overlay>
-              <a-menu>
-                <a-menu-item key="profile">
-                  <user-outlined />
-                  个人资料
-                </a-menu-item>
-                <a-menu-item key="logout" @click="logout">
-                  <logout-outlined />
-                  退出登录
-                </a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
-        </a-space>
-      </a-layout-header>
-      <a-layout-content class="app-content">
-        <RouterView />
-      </a-layout-content>
+    <!-- 管理员使用标准管理系统布局 -->
+    <a-layout v-else-if="isAdmin" class="admin-layout" style="min-height: 100vh">
+      <a-layout-sider
+        v-model:collapsed="collapsed"
+        collapsible
+        class="animate__animated animate__slideInLeft"
+      >
+        <div class="logo">
+          <h2 v-if="!collapsed">电影管理系统</h2>
+          <h2 v-else>影</h2>
+        </div>
+        <a-menu theme="dark" mode="inline" :selected-keys="[route.name]">
+          <a-menu-item
+            v-for="item in adminMenuItems"
+            :key="item.key"
+            @click="() => handleMenuClick(item)"
+          >
+            <template #icon><component :is="item.icon" /></template>
+            <span>{{ item.title }}</span>
+          </a-menu-item>
+        </a-menu>
+      </a-layout-sider>
+      <a-layout>
+        <a-layout-header class="admin-header">
+          <a-space>
+            <a-dropdown>
+              <a-button type="text">
+                <a-space>
+                  <a-avatar size="small" :style="{ backgroundColor: '#87d068' }" icon="user" />
+                  <span>管理员</span>
+                </a-space>
+              </a-button>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="profile">
+                    <user-outlined />
+                    个人资料
+                  </a-menu-item>
+                  <a-menu-item key="logout" @click="logout">
+                    <logout-outlined />
+                    退出登录
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </a-space>
+        </a-layout-header>
+        <a-layout-content class="app-content">
+          <RouterView />
+        </a-layout-content>
+      </a-layout>
     </a-layout>
-  </a-layout>
 
-  <!-- 用户使用C端风格布局 -->
-  <div v-else class="user-layout">
-    <!-- 顶部导航栏 -->
-    <header class="user-header animate__animated animate__fadeInDown">
-      <div class="header-container">
-        <!-- 左侧Logo部分 -->
-        <div class="logo-section">
-          <div class="logo-title">电影世界</div>
+    <!-- 用户使用C端风格布局 -->
+    <div v-else class="user-layout">
+      <!-- 顶部导航栏 -->
+      <header class="user-header animate__animated animate__fadeInDown">
+        <div class="header-container">
+          <!-- 左侧Logo部分 -->
+          <div class="logo-section">
+            <div class="logo-title">电影世界</div>
+          </div>
+
+          <!-- 中间菜单部分 -->
+          <div class="menu-section">
+            <a-menu mode="horizontal" :selected-keys="[route.name]">
+              <a-menu-item
+                v-for="item in userMenuItems"
+                :key="item.key"
+                @click="() => handleMenuClick(item)"
+              >
+                <template #icon><component :is="item.icon" /></template>
+                <span>{{ item.title }}</span>
+              </a-menu-item>
+            </a-menu>
+          </div>
+
+          <!-- 右侧用户部分 -->
+          <div class="user-section">
+            <a-dropdown>
+              <a-button type="text" class="user-button">
+                <a-space>
+                  <a-avatar :style="{ backgroundColor: '#1890ff' }">
+                    {{ userInfo?.username?.substring(0, 1)?.toUpperCase() || 'U' }}
+                  </a-avatar>
+                  <span>{{ userInfo?.username || '用户' }}</span>
+                </a-space>
+              </a-button>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="profile">
+                    <user-outlined />
+                    个人资料
+                  </a-menu-item>
+                  <a-menu-item key="logout" @click="logout">
+                    <logout-outlined />
+                    退出登录
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </div>
         </div>
+      </header>
 
-        <!-- 中间菜单部分 -->
-        <div class="menu-section">
-          <a-menu mode="horizontal" :selected-keys="[route.name]">
-            <a-menu-item
-              v-for="item in userMenuItems"
-              :key="item.key"
-              @click="() => handleMenuClick(item)"
-            >
-              <template #icon><component :is="item.icon" /></template>
-              <span>{{ item.title }}</span>
-            </a-menu-item>
-          </a-menu>
+      <!-- 主内容区 -->
+      <main class="user-content">
+        <div class="content-container">
+          <RouterView />
         </div>
-
-        <!-- 右侧用户部分 -->
-        <div class="user-section">
-          <a-dropdown>
-            <a-button type="text" class="user-button">
-              <a-space>
-                <a-avatar :style="{ backgroundColor: '#1890ff' }">
-                  {{ userInfo?.username?.substring(0, 1)?.toUpperCase() || 'U' }}
-                </a-avatar>
-                <span>{{ userInfo?.username || '用户' }}</span>
-              </a-space>
-            </a-button>
-            <template #overlay>
-              <a-menu>
-                <a-menu-item key="profile">
-                  <user-outlined />
-                  个人资料
-                </a-menu-item>
-                <a-menu-item key="logout" @click="logout">
-                  <logout-outlined />
-                  退出登录
-                </a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
-        </div>
-      </div>
-    </header>
-
-    <!-- 主内容区 -->
-    <main class="user-content">
-      <div class="content-container">
-        <RouterView />
-      </div>
-    </main>
-  </div>
+      </main>
+    </div>
+  </a-config-provider>
 </template>
 
 <style lang="less">

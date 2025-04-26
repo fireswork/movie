@@ -36,7 +36,7 @@ const handleLogin = () => {
         localStorage.setItem('user', JSON.stringify(response.data))
 
         message.success('登录成功')
-        router.push('/')
+        location.href = response.data.admin ? '/admin/dashboard' : '/'
       } catch (error) {
         console.error('登录失败:', error)
       } finally {

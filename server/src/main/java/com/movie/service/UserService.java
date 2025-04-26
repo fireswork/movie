@@ -6,11 +6,15 @@ import com.movie.entity.User;
 import com.movie.repository.UserRepository;
 import com.movie.security.CustomUserDetails;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
 
 @Service
 public class UserService implements UserDetailsService {
@@ -68,5 +72,25 @@ public class UserService implements UserDetailsService {
             user.getUsername(),
             user.isAdmin()
         );
+    }
+
+    public Page<User> findUsers(String username, String phone, Pageable pageable) {
+        return userRepository.findByUsernameContainingAndPhoneContaining(
+            username != null ? username : "", 
+            phone != null ? phone : "", 
+            pageable
+        );
+    }
+
+    public Optional<User> findById(Long id) {
+        return userRepository.findById(id);
+    }
+
+    public User save(User user) {
+        return userRepository.save(user);
+    }
+
+    public void deleteById(Long id) {
+        userRepository.deleteById(id);
     }
 } 

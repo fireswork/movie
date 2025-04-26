@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="jsx">
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
