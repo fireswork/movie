@@ -24,7 +24,6 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    console.log('响应拦截器', response)
     if (response.data.code === 200) {
       return response.data
     } else {

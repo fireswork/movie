@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="jsx">
 import { ref, reactive, onMounted } from 'vue';
 
 // 评论列表数据
