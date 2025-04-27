@@ -242,7 +242,6 @@ body {
 }
 
 .header-container {
-  max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
   display: flex;
@@ -285,7 +284,6 @@ body {
 }
 
 .content-container {
-  max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
   background: #fff;

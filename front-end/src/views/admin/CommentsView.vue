@@ -77,7 +77,7 @@ const columns = [
     key: 'userId',
     width: 100,
     customRender: ({ text }) => {
-      return users?.value?.find(item => item.value === text)?.label
+      return users?.value?.find(item => item.value === text)?.label || '-'
     }
   },
   {
@@ -389,8 +389,8 @@ onMounted(() => {
         <template v-if="currentComment">
           <a-descriptions bordered :column="1">
             <a-descriptions-item label="评论ID">{{ currentComment.id }}</a-descriptions-item>
-            <a-descriptions-item label="用户">{{ currentComment.userId }}</a-descriptions-item>
-            <a-descriptions-item label="电影">{{ currentComment.movieId }}</a-descriptions-item>
+            <a-descriptions-item label="用户">{{ users?.find(item => item.value === currentComment.userId)?.label }}</a-descriptions-item>
+            <a-descriptions-item label="电影">{{ movies?.find(item => item.value === currentComment.movieId)?.label }}</a-descriptions-item>
             <a-descriptions-item label="评分">{{ currentComment.rating ? `${currentComment.rating}分` : '-' }}</a-descriptions-item>
             <a-descriptions-item label="评论内容">{{ currentComment.comment || '-' }}</a-descriptions-item>
             <a-descriptions-item label="创建时间">

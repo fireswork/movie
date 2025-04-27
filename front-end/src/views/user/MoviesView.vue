@@ -10,11 +10,11 @@ import {
   MessageOutlined,
   StarOutlined,
   StarFilled,
-  MessageFilled
+  MessageFilled,
 } from '@ant-design/icons-vue'
 import request from '@/services/request'
 import { message, Modal } from 'ant-design-vue'
-
+import axios from '@/services/request'
 const router = useRouter()
 
 const userStore = JSON.parse(localStorage.getItem('user'))
@@ -147,7 +147,7 @@ const fetchRegions = async () => {
 
 // 根据地区ID获取地区名称
 const getRegionName = (regionId) => {
-  const region = regions.value.find(r => r.value === String(regionId))
+  const region = regions.value.find((r) => r.value === String(regionId))
   return region ? region.label : '未知地区'
 }
 
@@ -157,7 +157,7 @@ const fetchAllInteractions = async () => {
     const { data } = await request.get(`/movie-interactions/user/${userStore.userId}`)
     // 将数组转换为以movieId为key的对象
     const interactionsMap = {}
-    data.forEach(interaction => {
+    data.forEach((interaction) => {
       interactionsMap[interaction.movieId] = interaction
     })
     interactionStatus.value = interactionsMap
@@ -208,10 +208,10 @@ const playMovie = async (movie, event) => {
       const { data: isPurchased } = await request.get(`/orders/check`, {
         params: {
           userId: userStore.userId,
-          movieId: movie.id
-        }
-      });
-      
+          movieId: movie.id,
+        },
+      })
+
       if (!isPurchased) {
         // 弹出购买确认框
         const confirmResult = await new Promise((resolve) => {
@@ -222,50 +222,64 @@ const playMovie = async (movie, event) => {
             cancelText: '取消',
             onOk: () => resolve(true),
             onCancel: () => resolve(false),
-          });
-        });
+          })
+        })
 
         if (!confirmResult) {
-          return;
+          return
         }
 
         // 用户确认购买，创建并支付订单
         try {
-          loading.value = true;
+          loading.value = true
           // 创建订单
           const { data: order } = await request.post('/orders', {
             userId: userStore.userId,
             movieId: movie.id,
-            amount: movie.price
-          });
-          
+            amount: movie.price,
+          })
+
           // 立即支付
-          await request.post(`/orders/${order.id}/pay`);
-          message.success('购买成功！');
-          
+          await request.post(`/orders/${order.id}/pay`)
+          message.success('购买成功！')
+
           // 播放电影
-          movie.playCount += 1;
-          playModalVisible.value = true;
-          currentMovie.value = movie;
+          movie.playCount += 1
+          axios.put(`/movies/${movie.id}`, {
+            ...movie,
+            playCount: movie.playCount,
+          })
+          playModalVisible.value = true
+          currentMovie.value = movie
         } catch (error) {
-          console.error('购买失败:', error);
-          message.error(error.response?.data?.message || '购买失败，请稍后重试');
+          console.error('购买失败:', error)
+          message.error(error.response?.data?.message || '购买失败，请稍后重试')
         } finally {
-          loading.value = false;
+          loading.value = false
         }
-        return;
+        return
       }
     } catch (error) {
-      console.error('检查购买状态失败:', error);
-      message.error('检查购买状态失败，请稍后重试');
-      return;
+      console.error('检查购买状态失败:', error)
+      message.error('检查购买状态失败，请稍后重试')
+      return
     }
   }
 
-  // 免费电影或已购买的电影，直接播放
-  movie.playCount += 1;
-  playModalVisible.value = true;
-  currentMovie.value = movie;
+  try {
+    // 更新播放次数
+    // 免费电影或已购买的电影，直接播放
+    movie.playCount += 1
+    axios.put(`/movies/${movie.id}`, {
+      ...movie,
+      playCount: movie.playCount,
+    })
+    playModalVisible.value = true
+    currentMovie.value = movie
+  } catch (error) {
+    console.error('更新播放次数失败:', error)
+    message.error('播放失败，请稍后重试')
+  }
 }
 
 // 检查电影是否已收藏
@@ -424,10 +438,7 @@ const deleteComment = async (movie, event) => {
       comment: null,
     }
 
-    await request.put(
-      `/movie-interactions/user/${userStore.userId}/movie/${movie.id}`,
-      interaction,
-    )
+    await request.put(`/movie-interactions/user/${userStore.userId}/movie/${movie.id}`, interaction)
     // 重新获取所有互动状态
     await fetchAllInteractions()
   } catch (error) {
@@ -546,7 +557,7 @@ onMounted(() => {
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
             <p class="movie-meta text-ellipsis">{{ movie.duration }}分钟 | {{ movie.year }}</p>
             <p class="movie-actors text-ellipsis">{{ movie.actors || '暂无主演信息' }}</p>
-            <p>{{  getRegionName(movie.region)  }}</p>
+            <p>{{ getRegionName(movie.region) }}</p>
             <div class="movie-footer">
               <div class="movie-stats">
                 <span class="play-count">播放: {{ movie.playCount }}</span>
@@ -611,7 +622,7 @@ onMounted(() => {
         <iframe
           width="100%"
           height="400"
-          :src="currentMovie.trailerUrl"
+          :src="`https://www.youtube.com/embed/${currentMovie.trailerUrl}?autoplay=0&controls=1&rel=0`"
           frameborder="0"
           allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
           allowfullscreen
@@ -630,7 +641,7 @@ onMounted(() => {
     >
       <div v-if="userCollections.length === 0" class="empty-collections">
         <p>您还没有创建任何收藏夹</p>
-        <a-button type="primary" @click="router.push('/collections')"> 去创建收藏夹 </a-button>
+        <a-button type="primary" @click="router.push('/collection')"> 去创建收藏夹 </a-button>
       </div>
       <div v-else class="collections-list">
         <a-radio-group v-model:value="selectedCollectionId" class="collection-radio-group">

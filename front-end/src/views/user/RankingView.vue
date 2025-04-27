@@ -68,6 +68,10 @@ const fetchRatingRanking = async () => {
       request.get('/movies'),
       request.get(`/movie-interactions/user/${userInfo.userId}`)
     ])
+    console.log(moviesRes, interactionsRes)
+
+    ratingRanking.value = moviesRes.data.sort((a, b) => b.rating - a.rating)
+    return
     
     // 创建电影ID到电影信息的映射
     const movieMap = {}
@@ -139,8 +143,8 @@ onMounted(async () => {
               </p>
               <p class="movie-actors text-ellipsis">{{ movie.actors }}</p>
               <div class="movie-rating">
-                <a-rate :value="movie.userRating" disabled allow-half :count="5" />
-                <span class="rating-value">{{ movie.userRating }}分</span>
+                <a-rate :value="movie.rating / 2" disabled allow-half :count="5" />
+                <span class="rating-value">{{ movie.rating / 2 }}分</span>
               </div>
             </div>
             <div class="movie-price" :class="{ free: movie.isFree }">{{ formatPrice(movie) }}</div>

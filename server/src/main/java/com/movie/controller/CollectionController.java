@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Arrays;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/collections")
@@ -32,7 +33,11 @@ public class CollectionController {
     public ApiResponse<List<Movie>> getCollectionMovies(@PathVariable Long id) {
         return collectionRepository.findById(id)
                 .map(collection -> {
+                    if (collection.getMovieIds() == null || collection.getMovieIds().isEmpty()) {
+                        return ApiResponse.success(new ArrayList<>(), "获取成功");
+                    }
                     List<Long> movieIds = Arrays.stream(collection.getMovieIds().split(","))
+                            .filter(s -> !s.isEmpty())
                             .map(Long::parseLong)
                             .collect(Collectors.toList());
                     List<Movie> movies = movieRepository.findAllById(movieIds);

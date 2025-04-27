@@ -53,16 +53,10 @@ const statusOptions = [
 // 表格列定义
 const columns = [
   {
-    title: 'ID',
+    title: '留言ID',
     dataIndex: 'id',
     key: 'id',
     width: 80,
-  },
-  {
-    title: '用户ID',
-    dataIndex: 'userId',
-    key: 'userId',
-    width: 120,
   },
   {
     title: '留言类型',
@@ -335,9 +329,6 @@ onMounted(() => {
       >
         <template v-if="currentMessage">
           <a-descriptions bordered :column="1">
-            <a-descriptions-item label="用户ID">
-              {{ currentMessage.userId }}
-            </a-descriptions-item>
             <a-descriptions-item label="留言类型">
               {{ messageTypeText(currentMessage.type) }}
             </a-descriptions-item>

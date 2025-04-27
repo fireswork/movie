@@ -90,7 +90,6 @@ const fetchUsers = async () => {
         phone: filters.phone || ''
       }
     })
-    console.log('res', res)
     userList.value = res.content
     pagination.total = res.totalElements
   } catch (error) {
@@ -151,8 +150,8 @@ const handleEditUser = (record) => {
 // 删除用户
 const handleDeleteUser = async (record) => {
   try {
-    const { data: res } = await request.delete(`/users/${record.id}`)
-    message.success(res.message)
+    await request.delete(`/users/${record.id}`)
+    message.success('删除成功')
     fetchUsers()
   } catch (error) {
     message.error('删除用户失败')
