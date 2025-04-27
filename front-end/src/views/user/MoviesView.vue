@@ -1,7 +1,17 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { PlayCircleOutlined, HeartOutlined, HeartFilled, LikeOutlined, LikeFilled, StarOutlined, MessageOutlined } from '@ant-design/icons-vue'
+import {
+  PlayCircleOutlined,
+  HeartOutlined,
+  HeartFilled,
+  LikeOutlined,
+  LikeFilled,
+  MessageOutlined,
+  StarOutlined,
+  StarFilled,
+  MessageFilled
+} from '@ant-design/icons-vue'
 import request from '@/services/request'
 
 const router = useRouter()
@@ -141,7 +151,7 @@ const fetchMovies = async () => {
     // 检查每部电影的收藏状态
     await Promise.all(data.map((movie) => checkCollectionStatus(movie.id)))
     // 检查每部电影的互动状态
-    await Promise.all(data.map(movie => fetchInteractionStatus(movie.id)))
+    await Promise.all(data.map((movie) => fetchInteractionStatus(movie.id)))
     updatePagination()
   } catch (error) {
     console.error('获取电影列表失败:', error)
@@ -159,12 +169,11 @@ const updatePagination = () => {
 }
 
 const deleteMovie = async (movieId) => {
-  const collection = userCollections.value.find(c => c.movieIds.includes(String(movieId)))
+  const collection = userCollections.value.find((c) => c.movieIds.includes(String(movieId)))
   console.log(collection)
   await request.delete(`/collections/${collection.id}/movies/${movieId}`)
   checkCollectionStatus(movieId)
 }
-
 
 // 播放电影
 const playMovie = async (movie, event) => {
@@ -250,10 +259,11 @@ const confirmCollection = async () => {
 // 获取电影互动状态
 const fetchInteractionStatus = async (movieId) => {
   try {
-    const { data } = await request.get(`/movie-interactions/user/${userStore.userId}/movie/${movieId}`)
-    if (data) {
-      interactionStatus.value[movieId] = data
-    }
+    const { data } = await request.get(
+      `/movie-interactions/user/${userStore.userId}/movie/${movieId}`,
+    )
+    interactionStatus.value[movieId] = data
+    console.log(interactionStatus.value)
   } catch (error) {
     console.error('获取互动状态失败:', error)
   }
@@ -263,13 +273,15 @@ const fetchInteractionStatus = async (movieId) => {
 const toggleLike = async (movie, event) => {
   event.stopPropagation()
   try {
-    const { data } = await request.post('/movie-interactions/like', null, {
-      params: {
-        userId: userStore.userId,
-        movieId: movie.id
-      }
-    })
-    interactionStatus.value[movie.id] = data
+    const currentStatus = interactionStatus.value[movie.id] || {}
+    const interaction = {
+      liked: !currentStatus.liked,
+      rating: currentStatus.rating,
+      comment: currentStatus.comment,
+    }
+
+    await request.put(`/movie-interactions/user/${userStore.userId}/movie/${movie.id}`, interaction)
+    fetchInteractionStatus(movie.id)
   } catch (error) {
     console.error('点赞操作失败:', error)
   }
@@ -288,13 +300,18 @@ const submitRating = async () => {
   if (!currentRating.value) return
 
   try {
-    const { data } = await request.post('/movie-interactions/rate', null, {
-      params: {
-        userId: userStore.userId,
-        movieId: selectedMovie.value.id,
-        rating: currentRating.value
-      }
-    })
+    const currentStatus = interactionStatus.value[selectedMovie.value.id] || {}
+    const interaction = {
+      liked: currentStatus.liked || false,
+      rating: currentRating.value,
+      comment: currentStatus.comment,
+    }
+
+    const { data } = await request.put(
+      `/movie-interactions/user/${userStore.userId}/movie/${selectedMovie.value.id}`,
+      interaction,
+    )
+
     interactionStatus.value[selectedMovie.value.id] = data
     ratingModalVisible.value = false
     selectedMovie.value = null
@@ -316,13 +333,18 @@ const submitComment = async () => {
   if (!currentComment.value.trim()) return
 
   try {
-    const { data } = await request.post('/movie-interactions/comment', null, {
-      params: {
-        userId: userStore.userId,
-        movieId: selectedMovie.value.id,
-        comment: currentComment.value.trim()
-      }
-    })
+    const currentStatus = interactionStatus.value[selectedMovie.value.id] || {}
+    const interaction = {
+      liked: currentStatus.liked || false,
+      rating: currentStatus.rating,
+      comment: currentComment.value.trim(),
+    }
+
+    const { data } = await request.put(
+      `/movie-interactions/user/${userStore.userId}/movie/${selectedMovie.value.id}`,
+      interaction,
+    )
+
     interactionStatus.value[selectedMovie.value.id] = data
     commentModalVisible.value = false
     selectedMovie.value = null
@@ -336,15 +358,19 @@ const submitComment = async () => {
 const deleteComment = async (movie, event) => {
   event.stopPropagation()
   try {
-    await request.delete('/movie-interactions/comment', {
-      params: {
-        userId: userStore.userId,
-        movieId: movie.id
-      }
-    })
-    if (interactionStatus.value[movie.id]) {
-      interactionStatus.value[movie.id].comment = null
+    const currentStatus = interactionStatus.value[movie.id] || {}
+    const interaction = {
+      liked: currentStatus.liked || false,
+      rating: currentStatus.rating,
+      comment: null,
     }
+
+    const { data } = await request.put(
+      `/movie-interactions/user/${userStore.userId}/movie/${movie.id}`,
+      interaction,
+    )
+
+    interactionStatus.value[movie.id] = data
   } catch (error) {
     console.error('删除评论失败:', error)
   }
@@ -442,11 +468,7 @@ onMounted(() => {
 
     <div class="movies-section content-card">
       <div class="movie-list">
-        <div
-          v-for="movie in currentPageMovies"
-          :key="movie.id"
-          class="movie-card hover-scale"
-        >
+        <div v-for="movie in currentPageMovies" :key="movie.id" class="movie-card hover-scale">
           <div class="movie-cover-wrapper">
             <img :src="movie.coverBase64" alt="" class="movie-cover" />
             <div class="movie-rating">
@@ -473,35 +495,39 @@ onMounted(() => {
                 <a-button
                   type="text"
                   :danger="collectionStatus[movie.id]"
-                  @click="(e) => collectionStatus[movie.id] ? deleteMovie(movie.id) : showCollectionModal(movie, e)"
+                  @click="
+                    (e) =>
+                      collectionStatus[movie.id]
+                        ? deleteMovie(movie.id)
+                        : showCollectionModal(movie, e)
+                  "
                 >
                   <template #icon>
                     <heart-filled v-if="collectionStatus[movie.id]" />
                     <heart-outlined v-else />
                   </template>
                 </a-button>
-                <a-button 
+                <a-button
                   type="text"
                   :danger="interactionStatus[movie.id]?.isLiked"
                   @click="(e) => toggleLike(movie, e)"
                 >
                   <template #icon>
-                    <like-filled v-if="interactionStatus[movie.id]?.isLiked" />
+                    <like-filled v-if="interactionStatus[movie.id]?.liked" />
                     <like-outlined v-else />
                   </template>
                 </a-button>
-                <a-button 
-                  type="text"
-                  @click="(e) => showRatingModal(movie, e)"
-                >
-                  {{ interactionStatus[movie.id]?.rating || '评分' }}
+                <a-button type="text" @click="(e) => showRatingModal(movie, e)">
+                  <template #icon>
+                    <star-filled v-if="interactionStatus[movie.id]?.rating" />
+                    <star-outlined v-else />
+                  </template>
                 </a-button>
-                <a-button 
-                  type="text"
-                  @click="(e) => showCommentModal(movie, e)"
-                >
-                  <template #icon><message-outlined /></template>
-                  {{ interactionStatus[movie.id]?.comment ? '修改评论' : '评论' }}
+                <a-button type="text" @click="(e) => showCommentModal(movie, e)">
+                  <template #icon>
+                    <message-filled v-if="interactionStatus[movie.id]?.comment" />
+                    <message-outlined v-else />
+                  </template>
                 </a-button>
               </div>
             </div>
