@@ -31,7 +31,7 @@ const fetchAllMovies = async () => {
       .slice(0, 5)
     
     // 特价区：筛选免费电影
-    freeMovies.value = data.filter(movie => movie.isFree)
+    freeMovies.value = data.filter(movie => movie.isFree || movie.price <= 10)
     
     // 最新发布：按ID倒序排序，取前4个
     latestMovies.value = [...data]
@@ -108,13 +108,13 @@ onMounted(() => {
         >
           <div class="movie-cover-wrapper">
             <img :src="movie.coverBase64" alt="" class="movie-cover" />
-            <div class="movie-discount">
-              <a-tag color="#87d068">免费</a-tag>
+            <div class="movie-discount ">
+              <a-tag :color="movie.isFree ? '#87d068' : '#ff4d4f'">{{ movie.isFree ? '免费' : `¥${movie.price}` }}</a-tag>
             </div>
           </div>
           <div class="movie-info">
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
-            <p class="movie-price free">免费</p>
+            <p :class="`movie-price ${movie.isFree ? 'free' : ''}`">{{  movie.isFree ? '免费' : `¥${movie.price}`  }}</p>
           </div>
         </div>
       </div>

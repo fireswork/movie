@@ -34,16 +34,16 @@ public class CollectionController {
         return collectionRepository.findById(id)
                 .map(collection -> {
                     if (collection.getMovieIds() == null || collection.getMovieIds().isEmpty()) {
-                        return ApiResponse.success(new ArrayList<>(), "获取成功");
+                        return ApiResponse.<List<Movie>>success(new ArrayList<>(), "获取成功");
                     }
                     List<Long> movieIds = Arrays.stream(collection.getMovieIds().split(","))
                             .filter(s -> !s.isEmpty())
                             .map(Long::parseLong)
                             .collect(Collectors.toList());
                     List<Movie> movies = movieRepository.findAllById(movieIds);
-                    return ApiResponse.success(movies, "获取成功");
+                    return ApiResponse.<List<Movie>>success(movies, "获取成功");
                 })
-                .orElse(ApiResponse.error(400, "收藏夹不存在"));
+                .orElse(ApiResponse.<List<Movie>>error(400, "收藏夹不存在"));
     }
 
     @PostMapping

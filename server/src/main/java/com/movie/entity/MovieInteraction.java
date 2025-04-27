@@ -38,6 +38,9 @@ public class MovieInteraction {
     @Column(name = "comment", length = 1000)
     private String comment;
 
+    @Column(name = "play_count")
+    private Integer playCount = 0;
+
     @Column(name = "created_at")
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -92,6 +95,14 @@ public class MovieInteraction {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public Integer getPlayCount() {
+        return playCount;
+    }
+
+    public void setPlayCount(Integer playCount) {
+        this.playCount = playCount;
     }
 
     public LocalDateTime getCreatedAt() {
