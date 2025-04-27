@@ -39,6 +39,15 @@ public class Movie {
 
     private Double price;
 
+    @Column(columnDefinition = "TEXT")
+    private String actors; // 主演，用逗号分隔
+
+    @Column(columnDefinition = "TEXT")
+    private String trailerUrl; // 预告片链接
+
+    @Column(nullable = false)
+    private Integer playCount = 0; // 播放次数
+
     public Long getId() {
         return id;
     }
@@ -117,5 +126,29 @@ public class Movie {
 
     public void setPrice(Double price) {
         this.price = price;
+    }
+
+    public String getActors() {
+        return actors;
+    }
+
+    public void setActors(String actors) {
+        this.actors = actors;
+    }
+
+    public String getTrailerUrl() {
+        return trailerUrl;
+    }
+
+    public void setTrailerUrl(String trailerUrl) {
+        this.trailerUrl = trailerUrl;
+    }
+
+    public Integer getPlayCount() {
+        return playCount;
+    }
+
+    public void setPlayCount(Integer playCount) {
+        this.playCount = playCount;
     }
 } 

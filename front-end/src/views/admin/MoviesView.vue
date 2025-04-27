@@ -31,7 +31,10 @@ const formState = ref({
   duration: undefined,
   rating: undefined,
   isFree: false,
-  price: undefined
+  price: undefined,
+  actors: '',
+  trailerUrl: '',
+  playCount: 0
 });
 
 /**
@@ -52,6 +55,7 @@ const rules = {
   year: [{ required: true, message: '请输入上映年份' }],
   duration: [{ required: true, message: '请输入电影时长' }],
   rating: [{ required: true, message: '请输入评分' }],
+  actors: [{ required: true, message: '请输入主演' }],
   price: [{ 
     required: true, 
     message: '请输入价格',
@@ -61,7 +65,8 @@ const rules = {
       }
       return Promise.resolve()
     }
-  }]
+  }],
+  trailerUrl: [{ required: true, message: '请输入预告片链接' }]
 };
 
 const columns = [
@@ -81,6 +86,12 @@ const columns = [
     title: '电影名称',
     dataIndex: 'title',
     key: 'title'
+  },
+  {
+    title: '主演',
+    dataIndex: 'actors',
+    key: 'actors',
+    ellipsis: true
   },
   {
     title: '分类',
@@ -117,6 +128,12 @@ const columns = [
     title: '价格',
     dataIndex: 'price',
     key: 'price'
+  },
+  {
+    title: '播放次数',
+    dataIndex: 'playCount',
+    key: 'playCount',
+    width: 100,
   },
   {
     title: '操作',
@@ -187,6 +204,9 @@ const resetForm = () => {
   formState.value.rating = 0;
   formState.value.isFree = false;
   formState.value.price = 0;
+  formState.value.actors = '';
+  formState.value.trailerUrl = '';
+  formState.value.playCount = 0;
 };
 
 const handleAdd = () => {
@@ -403,6 +423,10 @@ onMounted(() => {
             <a-input v-model:value="formState.title" placeholder="请输入电影名称" />
           </a-form-item>
 
+          <a-form-item label="主演" name="actors">
+            <a-input v-model:value="formState.actors" placeholder="请输入主演姓名，多个主演用逗号分隔" />
+          </a-form-item>
+
           <a-form-item label="电影封面" name="coverBase64">
             <a-upload
               v-model:file-list="fileList"
@@ -483,6 +507,17 @@ onMounted(() => {
                 addon-before="¥"
               />
             </a-space>
+          </a-form-item>
+
+          <a-form-item label="预告片链接" name="trailerUrl">
+            <a-input
+              v-model:value="formState.trailerUrl"
+              placeholder="请输入预告片链接（支持mp4或其他视频格式）"
+            />
+          </a-form-item>
+
+          <a-form-item v-if="isEdit" label="播放次数">
+            <span>{{ formState.playCount }}</span>
           </a-form-item>
         </a-form>
       </a-modal>

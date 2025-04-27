@@ -1,6 +1,7 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { PlayCircleOutlined } from '@ant-design/icons-vue'
 import request from '@/services/request'
 
 const router = useRouter()
@@ -9,29 +10,18 @@ const router = useRouter()
 const filterForm = reactive({
   categories: [],
   region: undefined,
-  yearRange: [1970, new Date().getFullYear()],
-  actor: '',
-  durationRange: [0, 300],
-  priceRange: [0, 100],
+  year: '',
+  duration: '',
+  price: '',
+  actor: ''
 })
 
 // 分类和地区选项
 const categories = ref([])
 const regions = ref([])
 
-// 电影列表
-const movies = ref([])
-const allMovies = ref([]) // 用于存储所有电影，便于筛选
-
-// 排序选项
-const sortOptions = [
-  { label: '热度排序', value: 'popularity' },
-  { label: '评分排序', value: 'rating' },
-  { label: '时长排序', value: 'duration' },
-  { label: '价格升序', value: 'price-asc' },
-  { label: '价格降序', value: 'price-desc' },
-]
-const currentSort = ref('popularity')
+// 所有电影数据
+const allMovies = ref([])
 
 // 分页
 const pagination = reactive({
@@ -40,6 +30,61 @@ const pagination = reactive({
   total: 0,
   showSizeChanger: true,
   pageSizeOptions: ['12', '24', '48', '96'],
+})
+
+// 添加播放相关的状态
+const playModalVisible = ref(false)
+const currentMovie = ref(null)
+
+// 筛选后的电影列表
+const filteredMovies = computed(() => {
+  let result = [...allMovies.value]
+
+  // 按分类筛选
+  if (filterForm.categories.length > 0) {
+    result = result.filter(movie => 
+      filterForm.categories.some(cat => movie.categories.includes(cat))
+    )
+  }
+
+  // 按地区筛选
+  if (filterForm.region) {
+    result = result.filter(movie => String(movie.region) === filterForm.region)
+  }
+
+  // 按年份筛选
+  if (filterForm.year) {
+    result = result.filter(movie => movie.year === Number(filterForm.year))
+  }
+
+  // 按时长筛选
+  if (filterForm.duration) {
+    result = result.filter(movie => movie.duration === Number(filterForm.duration))
+  }
+
+  // 按价格筛选
+  if (filterForm.price) {
+    result = result.filter(movie => {
+      const moviePrice = movie.isFree ? 0 : movie.price
+      return moviePrice === Number(filterForm.price)
+    })
+  }
+
+  // 按主演筛选
+  if (filterForm.actor) {
+    result = result.filter(movie => 
+      movie.actors && movie.actors.toLowerCase().includes(filterForm.actor.toLowerCase())
+    )
+  }
+
+  return result
+})
+
+// 当前页的电影
+const currentPageMovies = computed(() => {
+  const start = (pagination.current - 1) * pagination.pageSize
+  const end = start + pagination.pageSize
+  return filteredMovies.value.slice(start, end)
 })
 
 // 获取分类列表
@@ -76,67 +121,20 @@ const fetchMovies = async () => {
   try {
     const { data } = await request.get('/movies')
     allMovies.value = data
-    filterMovies()
+    updatePagination()
   } catch (error) {
     console.error('获取电影列表失败:', error)
   }
 }
 
-// 筛选电影
-const filterMovies = () => {
-  let filteredMovies = [...allMovies.value]
-
-  // 按分类筛选
-  if (filterForm.categories.length > 0) {
-    filteredMovies = filteredMovies.filter(movie => 
-      filterForm.categories.some(cat => movie.categories.includes(cat))
-    )
+// 更新分页信息
+const updatePagination = () => {
+  pagination.total = filteredMovies.value.length
+  // 如果当前页超出范围，重置为第一页
+  const maxPage = Math.ceil(pagination.total / pagination.pageSize)
+  if (pagination.current > maxPage) {
+    pagination.current = 1
   }
-
-  // 按地区筛选
-  if (filterForm.region) {
-    filteredMovies = filteredMovies.filter(movie => 
-      movie.region === filterForm.region
-    )
-  }
-
-  // 按年份范围筛选
-  filteredMovies = filteredMovies.filter(movie => 
-    movie.year >= filterForm.yearRange[0] && movie.year <= filterForm.yearRange[1]
-  )
-
-  // 按时长范围筛选
-  filteredMovies = filteredMovies.filter(movie => 
-    movie.duration >= filterForm.durationRange[0] && movie.duration <= filterForm.durationRange[1]
-  )
-
-  // 按价格范围筛选
-  filteredMovies = filteredMovies.filter(movie => {
-    const price = movie.isFree ? 0 : movie.price
-    return price >= filterForm.priceRange[0] && price <= filterForm.priceRange[1]
-  })
-
-  // 按排序方式排序
-  switch (currentSort.value) {
-    case 'rating':
-      filteredMovies.sort((a, b) => b.rating - a.rating)
-      break
-    case 'duration':
-      filteredMovies.sort((a, b) => b.duration - a.duration)
-      break
-    case 'price-asc':
-      filteredMovies.sort((a, b) => (a.isFree ? 0 : a.price) - (b.isFree ? 0 : b.price))
-      break
-    case 'price-desc':
-      filteredMovies.sort((a, b) => (b.isFree ? 0 : b.price) - (a.isFree ? 0 : a.price))
-      break
-    default:
-      // 默认按ID倒序（最新）排序
-      filteredMovies.sort((a, b) => b.id - a.id)
-  }
-
-  movies.value = filteredMovies
-  pagination.total = filteredMovies.length
 }
 
 const handlePageChange = (page, pageSize) => {
@@ -144,28 +142,37 @@ const handlePageChange = (page, pageSize) => {
   pagination.pageSize = pageSize
 }
 
-const handleSortChange = (value) => {
-  currentSort.value = value
-  filterMovies()
-}
-
-const handleFilter = () => {
-  filterMovies()
-}
-
-const handleResetFilter = () => {
-  filterForm.categories = []
-  filterForm.region = undefined
-  filterForm.yearRange = [1970, new Date().getFullYear()]
-  filterForm.actor = ''
-  filterForm.durationRange = [0, 300]
-  filterForm.priceRange = [0, 100]
-  filterMovies()
-}
-
 const goToMovie = (id) => {
   router.push(`/movie/${id}`)
 }
+
+// 播放电影
+const playMovie = async (movie, event) => {
+  event.stopPropagation() // 阻止事件冒泡，避免触发跳转
+  currentMovie.value = movie
+  playModalVisible.value = true
+  
+  try {
+    // 更新播放次数
+    await request.put(`/movies/${movie.id}`, {
+      ...movie,
+      playCount: movie.playCount + 1
+    })
+    // 更新本地数据
+    const index = allMovies.value.findIndex(m => m.id === movie.id)
+    if (index !== -1) {
+      allMovies.value[index].playCount++
+    }
+  } catch (error) {
+    console.error('更新播放次数失败:', error)
+  }
+}
+
+// 监听筛选条件变化
+watch(filterForm, () => {
+  pagination.current = 1 // 重置页码
+  updatePagination()
+}, { deep: true })
 
 onMounted(() => {
   fetchCategories()
@@ -203,54 +210,57 @@ onMounted(() => {
           </a-col>
 
           <a-col :span="24" :md="8">
-            <a-form-item label="年份范围">
-              <a-slider v-model:value="filterForm.yearRange" range :min="1970" :max="2024" />
+            <a-form-item label="年份">
+              <a-input-number
+                v-model:value="filterForm.year"
+                placeholder="请输入年份"
+                style="width: 100%"
+                :min="1970"
+                :max="2025"
+              />
+            </a-form-item>
+          </a-col>
+
+          <a-col :span="24" :md="8">
+            <a-form-item label="时长(分钟)">
+              <a-input-number
+                v-model:value="filterForm.duration"
+                placeholder="请输入时长"
+                style="width: 100%"
+                :min="0"
+              />
+            </a-form-item>
+          </a-col>
+
+          <a-col :span="24" :md="8">
+            <a-form-item label="价格(元)">
+              <a-input-number
+                v-model:value="filterForm.price"
+                placeholder="请输入价格"
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
             </a-form-item>
           </a-col>
 
           <a-col :span="24" :md="8">
             <a-form-item label="主演">
-              <a-input v-model:value="filterForm.actor" placeholder="请输入演员名称" />
+              <a-input
+                v-model:value="filterForm.actor"
+                placeholder="请输入主演姓名"
+                allowClear
+              />
             </a-form-item>
-          </a-col>
-
-          <a-col :span="24" :md="8">
-            <a-form-item label="时长范围(分钟)">
-              <a-slider v-model:value="filterForm.durationRange" range :min="0" :max="300" />
-            </a-form-item>
-          </a-col>
-
-          <a-col :span="24" :md="8">
-            <a-form-item label="价格范围(元)">
-              <a-slider v-model:value="filterForm.priceRange" range :min="0" :max="100" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="16">
-          <a-col :span="24">
-            <div class="filter-buttons">
-              <a-button type="primary" @click="handleFilter">筛选</a-button>
-              <a-button @click="handleResetFilter">重置</a-button>
-            </div>
           </a-col>
         </a-row>
       </a-form>
     </div>
 
     <div class="movies-section content-card">
-      <div class="sort-section">
-        <a-select
-          v-model:value="currentSort"
-          :options="sortOptions"
-          @change="handleSortChange"
-          style="width: 160px"
-        />
-      </div>
-
       <div class="movie-list">
         <div
-          v-for="movie in movies"
+          v-for="movie in currentPageMovies"
           :key="movie.id"
           class="movie-card hover-scale"
           @click="() => goToMovie(movie.id)"
@@ -260,14 +270,21 @@ onMounted(() => {
             <div class="movie-rating">
               <a-tag color="#f50">{{ movie.rating }}分</a-tag>
             </div>
+            <div class="movie-play-btn" @click="(e) => playMovie(movie, e)">
+              <play-circle-outlined />
+            </div>
           </div>
           <div class="movie-info">
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
             <p class="movie-meta text-ellipsis">
               {{ movie.duration }}分钟 | {{ movie.year }}
             </p>
-            <p class="movie-price" :class="{ 'free': movie.isFree }">
-              {{ movie.isFree ? '免费' : `¥${movie.price}` }}
+            <p class="movie-actors text-ellipsis">{{ movie.actors || '暂无主演信息' }}</p>
+            <p class="movie-stats">
+              <span class="play-count">播放: {{ movie.playCount }}</span>
+              <span class="price" :class="{ 'free': movie.isFree }">
+                {{ movie.isFree ? '免费' : `¥${movie.price}` }}
+              </span>
             </p>
           </div>
         </div>
@@ -284,24 +301,33 @@ onMounted(() => {
         />
       </div>
     </div>
+
+    <!-- 播放弹窗 -->
+    <a-modal
+      v-model:open="playModalVisible"
+      title="预告片播放"
+      width="800px"
+      :footer="null"
+      @cancel="currentMovie = null"
+    >
+      <div v-if="currentMovie" class="video-container">
+        <iframe
+          width="100%"
+          height="400"
+          :src="currentMovie.trailerUrl"
+          frameborder="0"
+          allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+        >
+        </iframe>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <style scoped>
 .filter-section {
   margin-bottom: 16px;
-}
-
-.filter-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.sort-section {
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: flex-end;
 }
 
 .movie-list {
@@ -354,6 +380,12 @@ onMounted(() => {
   margin: 0 0 8px;
 }
 
+.movie-actors {
+  font-size: 13px;
+  color: var(--text-color-secondary);
+  margin: 0 0 8px;
+}
+
 .movie-price {
   font-size: 16px;
   font-weight: bold;
@@ -363,6 +395,59 @@ onMounted(() => {
 
 .movie-price.free {
   color: #52c41a;
+}
+
+.movie-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 48px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.movie-cover-wrapper:hover .movie-play-btn {
+  opacity: 1;
+}
+
+.movie-cover-wrapper:hover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.movie-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  font-size: 14px;
+}
+
+.play-count {
+  color: var(--text-color-secondary);
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+}
+
+.video-container video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
 }
 
 .pagination-section {

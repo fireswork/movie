@@ -108,17 +108,6 @@ onMounted(() => {
           </div>
         </div>
       </div>
-
-      <div class="pagination">
-        <a-pagination
-          v-model:current="pagination.current"
-          :pageSize="pagination.pageSize"
-          :total="pagination.total"
-          @change="pagination.onChange"
-          showSizeChanger
-          :pageSizeOptions="['8', '16', '24', '32']"
-        />
-      </div>
     </div>
   </div>
 </template>
