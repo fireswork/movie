@@ -10,6 +10,9 @@ import {
   PlayCircleOutlined,
   LockOutlined,
 } from '@ant-design/icons-vue'
+import { useRequest } from 'vue-request'
+import { useUserStore } from '@/stores/user'
+import { message } from 'ant-design-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -138,15 +141,30 @@ const handleComment = () => {
   movie.value.commentCount += 1
 }
 
-const handlePlay = () => {
-  if (movie.value.isPaid && !movie.value.hasPurchased) {
-    router.push(`/payment/${movie.value.id}`)
-    return
+const handlePlay = async () => {
+  if (movie.value.isPaid) {
+    try {
+      const { data } = await request.get(`/orders/check`, {
+        params: {
+          userId: userStore.userId,
+          movieId: movie.value.id
+        }
+      });
+      
+      if (!data) {
+        router.push(`/payment/${movie.value.id}`);
+        return;
+      }
+    } catch (error) {
+      console.error('检查购买状态失败:', error);
+      message.error('检查购买状态失败，请稍后重试');
+      return;
+    }
   }
 
   // 播放电影的逻辑
-  alert('开始播放电影')
-  movie.value.playCount += 1
+  alert('开始播放电影');
+  movie.value.playCount += 1;
 }
 
 const goToPayment = () => {

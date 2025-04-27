@@ -59,10 +59,12 @@ const router = createRouter({
       meta: { title: '智能推荐' },
     },
     {
-      path: '/payment/:id',
+      path: '/payment/:movieId',
       name: 'payment',
       component: () => import('../views/user/PaymentView.vue'),
-      meta: { title: '电影支付' },
+      meta: {
+        requiresAuth: true
+      }
     },
     {
       path: '/message',

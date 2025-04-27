@@ -13,6 +13,7 @@ import {
   MessageFilled
 } from '@ant-design/icons-vue'
 import request from '@/services/request'
+import { message, Modal } from 'ant-design-vue'
 
 const router = useRouter()
 
@@ -47,6 +48,7 @@ const pagination = reactive({
 // 添加播放相关的状态
 const playModalVisible = ref(false)
 const currentMovie = ref(null)
+const loading = ref(false)
 
 // 收藏相关状态
 const collectionModalVisible = ref(false)
@@ -199,24 +201,71 @@ const deleteMovie = async (movieId) => {
 
 // 播放电影
 const playMovie = async (movie, event) => {
-  event.stopPropagation() // 阻止事件冒泡，避免触发跳转
-  currentMovie.value = movie
-  playModalVisible.value = true
+  event.stopPropagation()
+  if (!movie.isFree) {
+    try {
+      // 先检查是否已购买
+      const { data: isPurchased } = await request.get(`/orders/check`, {
+        params: {
+          userId: userStore.userId,
+          movieId: movie.id
+        }
+      });
+      
+      if (!isPurchased) {
+        // 弹出购买确认框
+        const confirmResult = await new Promise((resolve) => {
+          Modal.confirm({
+            title: '购买确认',
+            content: `确定要以 ¥${movie.price} 购买《${movie.title}》吗？`,
+            okText: '确认购买',
+            cancelText: '取消',
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          });
+        });
 
-  try {
-    // 更新播放次数
-    await request.put(`/movies/${movie.id}`, {
-      ...movie,
-      playCount: movie.playCount + 1,
-    })
-    // 更新本地数据
-    const index = allMovies.value.findIndex((m) => m.id === movie.id)
-    if (index !== -1) {
-      allMovies.value[index].playCount++
+        if (!confirmResult) {
+          return;
+        }
+
+        // 用户确认购买，创建并支付订单
+        try {
+          loading.value = true;
+          // 创建订单
+          const { data: order } = await request.post('/orders', {
+            userId: userStore.userId,
+            movieId: movie.id,
+            amount: movie.price
+          });
+          
+          // 立即支付
+          await request.post(`/orders/${order.id}/pay`);
+          message.success('购买成功！');
+          
+          // 播放电影
+          movie.playCount += 1;
+          playModalVisible.value = true;
+          currentMovie.value = movie;
+        } catch (error) {
+          console.error('购买失败:', error);
+          message.error(error.response?.data?.message || '购买失败，请稍后重试');
+        } finally {
+          loading.value = false;
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('检查购买状态失败:', error);
+      message.error('检查购买状态失败，请稍后重试');
+      return;
     }
-  } catch (error) {
-    console.error('更新播放次数失败:', error)
   }
+
+  // 免费电影或已购买的电影，直接播放
+  movie.playCount += 1;
+  playModalVisible.value = true;
+  currentMovie.value = movie;
 }
 
 // 检查电影是否已收藏
@@ -483,10 +532,13 @@ onMounted(() => {
             <img :src="movie.coverBase64" alt="" class="movie-cover" />
             <div class="movie-rating">
               <a-tag color="#f50">{{ movie.rating }}分</a-tag>
+              <a-tag v-if="!movie.isFree" color="#108ee9">¥{{ movie.price }}</a-tag>
             </div>
             <div class="movie-actions">
               <div class="movie-play-btn" @click="(e) => playMovie(movie, e)">
-                <play-circle-outlined />
+                <a-button type="primary" shape="circle" :loading="loading">
+                  <template #icon><play-circle-outlined /></template>
+                </a-button>
               </div>
             </div>
           </div>
@@ -665,6 +717,9 @@ onMounted(() => {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .movie-info {
@@ -716,16 +771,26 @@ onMounted(() => {
   opacity: 1;
 }
 
-.movie-play-btn,
-.movie-collect-btn {
+.movie-play-btn {
   color: white;
   font-size: 32px;
   cursor: pointer;
   transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.movie-play-btn:hover,
-.movie-collect-btn:hover {
+.movie-play-btn .ant-btn {
+  width: 48px;
+  height: 48px;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.movie-play-btn:hover {
   transform: scale(1.2);
 }
 
