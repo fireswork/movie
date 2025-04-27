@@ -1,6 +1,8 @@
 <script setup lang="jsx">
 import { ref, reactive, onMounted } from 'vue';
 import { message, notification } from 'ant-design-vue';
+import axios from '@/services/request';
+import dayjs from 'dayjs';
 
 // 留言列表数据
 const messageList = ref([]);
@@ -10,8 +12,6 @@ const loading = ref(false);
 const drawerVisible = ref(false);
 // 当前选中的留言
 const currentMessage = ref(null);
-// 回复内容
-const replyContent = ref('');
 // 回复提交状态
 const replying = ref(false);
 
@@ -45,9 +45,9 @@ const messageTypeOptions = [
 // 留言状态选项
 const statusOptions = [
   { label: '全部', value: '' },
-  { label: '待处理', value: 'pending' },
-  { label: '已回复', value: 'replied' },
-  { label: '已关闭', value: 'closed' }
+  { label: '待处理', value: 'PENDING' },
+  { label: '已处理', value: 'PROCESSED' },
+  { label: '已关闭', value: 'CLOSED' }
 ];
 
 // 表格列定义
@@ -59,9 +59,9 @@ const columns = [
     width: 80,
   },
   {
-    title: '用户名',
-    dataIndex: 'username',
-    key: 'username',
+    title: '用户ID',
+    dataIndex: 'userId',
+    key: 'userId',
     width: 120,
   },
   {
@@ -84,9 +84,9 @@ const columns = [
     width: 100,
     customRender: ({ text }) => {
       const statusMap = {
-        pending: { text: '待处理', color: 'orange' },
-        replied: { text: '已回复', color: 'green' },
-        closed: { text: '已关闭', color: 'gray' }
+        PENDING: { text: '待处理', color: 'orange' },
+        PROCESSED: { text: '已处理', color: 'green' },
+        CLOSED: { text: '已关闭', color: 'gray' }
       };
       const status = statusMap[text] || { text, color: 'default' };
       return <a-tag color={status.color}>{status.text}</a-tag>;
@@ -94,9 +94,10 @@ const columns = [
   },
   {
     title: '创建时间',
-    dataIndex: 'createTime',
-    key: 'createTime',
+    dataIndex: 'createdAt',
+    key: 'createdAt',
     width: 180,
+    customRender: ({ text }) => dayjs(text).format('YYYY-MM-DD HH:mm'),
   },
   {
     title: '操作',
@@ -106,127 +107,6 @@ const columns = [
   }
 ];
 
-// 获取留言列表数据
-const fetchMessages = () => {
-  loading.value = true;
-  
-  // 模拟API请求
-  setTimeout(() => {
-    // 生成模拟数据
-    const mockMessages = [];
-    const total = 153; // 模拟总数
-    
-    const users = Array.from({ length: 20 }, (_, i) => ({
-      id: i + 1,
-      username: `user${i + 1}`,
-      nickname: `用户${i + 1}`,
-    }));
-    
-    for (let i = 1; i <= total; i++) {
-      const statusOptions = ['pending', 'replied', 'closed'];
-      const status = statusOptions[Math.floor(Math.random() * statusOptions.length)];
-      
-      const typeOptions = ['suggestion', 'content', 'technical', 'other'];
-      const type = typeOptions[Math.floor(Math.random() * typeOptions.length)];
-      
-      const user = users[Math.floor(Math.random() * users.length)];
-      
-      const messageTemplates = [
-        '希望能增加更多的电影分类，比如体育类电影专区',
-        '最近上映的某某电影质量不太好，希望能提高上架电影的筛选标准',
-        '网站加载速度有些慢，希望能优化一下',
-        '能否增加更多支付方式，比如支持支付宝',
-        '页面上的部分链接点击无反应',
-        '希望能增加电影推荐功能，根据我看过的电影推荐新片',
-        '有些电影描述与实际内容不符，请审核',
-        '能否增加电影预告片功能',
-        '希望可以增加电影评分排行榜功能',
-        '个人中心页面布局有点混乱，希望优化'
-      ];
-      
-      const randomMessage = messageTemplates[Math.floor(Math.random() * messageTemplates.length)];
-      
-      // 随机生成一个月内的时间
-      const date = new Date();
-      date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-      const createTime = date.toISOString().replace('T', ' ').substring(0, 19);
-      
-      // 如果状态为已回复，生成回复内容和时间
-      let replyContent = null;
-      let replyTime = null;
-      
-      if (status === 'replied') {
-        const replyTemplates = [
-          '感谢您的反馈，我们会认真考虑您的建议',
-          '您好，我们已经收到您的反馈，技术团队正在处理相关问题',
-          '非常感谢您的建议，我们会在下一版本中考虑添加该功能',
-          '您反馈的问题已经修复，请刷新页面后重试',
-          '我们已经将您的意见转达给相关部门，感谢您的支持'
-        ];
-        
-        replyContent = replyTemplates[Math.floor(Math.random() * replyTemplates.length)];
-        
-        // 回复时间比创建时间晚1-3天
-        const replyDate = new Date(date);
-        replyDate.setDate(replyDate.getDate() + Math.floor(Math.random() * 3) + 1);
-        replyTime = replyDate.toISOString().replace('T', ' ').substring(0, 19);
-      }
-      
-      mockMessages.push({
-        id: i,
-        userId: user.id,
-        username: user.username,
-        content: randomMessage,
-        type,
-        status,
-        createTime,
-        replyContent,
-        replyTime
-      });
-    }
-    
-    // 筛选逻辑
-    let filteredData = [...mockMessages];
-    
-    if (filters.content) {
-      filteredData = filteredData.filter(item => item.content.includes(filters.content));
-    }
-    
-    if (filters.type) {
-      filteredData = filteredData.filter(item => item.type === filters.type);
-    }
-    
-    if (filters.status) {
-      filteredData = filteredData.filter(item => item.status === filters.status);
-    }
-    
-    if (filters.username) {
-      filteredData = filteredData.filter(item => item.username.includes(filters.username));
-    }
-    
-    if (filters.timeRange && filters.timeRange.length === 2) {
-      const startDate = filters.timeRange[0].format('YYYY-MM-DD') + ' 00:00:00';
-      const endDate = filters.timeRange[1].format('YYYY-MM-DD') + ' 23:59:59';
-      
-      filteredData = filteredData.filter(item => 
-        item.createTime >= startDate && item.createTime <= endDate
-      );
-    }
-    
-    // 按创建时间倒序排序
-    filteredData.sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
-    
-    // 分页
-    const start = (pagination.current - 1) * pagination.pageSize;
-    const end = start + pagination.pageSize;
-    const paginatedData = filteredData.slice(start, end);
-    
-    messageList.value = paginatedData;
-    pagination.total = filteredData.length;
-    loading.value = false;
-  }, 800);
-};
-
 // 映射留言类型到显示文本
 const messageTypeText = (type) => {
   const map = {
@@ -234,20 +114,47 @@ const messageTypeText = (type) => {
     content: '内容反馈',
     technical: '技术问题',
     other: '其他'
-  };
-  return map[type] || type;
+  }
+  return map[type] || type
+}
+
+// 获取留言列表数据
+const fetchMessages = async () => {
+  loading.value = true;
+  try {
+    const { data } = await axios.get('/messages/admin/all');
+    const filteredData = filterMessages(data);
+    messageList.value = filteredData;
+    pagination.total = filteredData.length;
+  } catch (error) {
+    message.error('获取留言列表失败');
+    console.error('获取留言列表失败:', error);
+  } finally {
+    loading.value = false;
+  }
 };
 
-// 表格分页、排序、筛选变化时的回调
-const handleTableChange = (pag) => {
-  pagination.current = pag.current;
-  pagination.pageSize = pag.pageSize;
-  fetchMessages();
+// 前端搜索过滤
+const filterMessages = (data) => {
+  return data.filter(item => {
+    // 按内容搜索
+    if (filters.content && !item.content.toLowerCase().includes(filters.content.toLowerCase())) {
+      return false;
+    }
+    // 按类型筛选
+    if (filters.type && item.type !== filters.type) {
+      return false;
+    }
+    // 按状态筛选
+    if (filters.status && item.status !== filters.status) {
+      return false;
+    }
+    return true;
+  });
 };
 
 // 查询
 const handleSearch = () => {
-  pagination.current = 1;
   fetchMessages();
 };
 
@@ -256,16 +163,12 @@ const handleReset = () => {
   filters.content = '';
   filters.type = undefined;
   filters.status = undefined;
-  filters.username = '';
-  filters.timeRange = [];
-  pagination.current = 1;
   fetchMessages();
 };
 
 // 查看留言详情并回复
 const handleReply = (record) => {
   currentMessage.value = record;
-  replyContent.value = record.replyContent || '';
   drawerVisible.value = true;
 };
 
@@ -273,43 +176,56 @@ const handleReply = (record) => {
 const onDrawerClose = () => {
   drawerVisible.value = false;
   currentMessage.value = null;
-  replyContent.value = '';
 };
 
 // 提交回复
-const submitReply = () => {
-  if (!replyContent.value.trim()) {
-    message.error('请输入回复内容');
-    return;
-  }
+const submitReply = async () => {
+  if (!currentMessage.value) return;
   
   replying.value = true;
-  
-  // 模拟API请求
-  setTimeout(() => {
-    notification.success({
-      message: '回复成功',
-      description: `已成功回复用户 ${currentMessage.value.username} 的留言`
+  try {
+    await axios.put(`/messages/${currentMessage.value.id}/status`, null, {
+      params: { status: 'PROCESSED' }
     });
-    
-    // 关闭抽屉
-    drawerVisible.value = false;
-    currentMessage.value = null;
-    replyContent.value = '';
+
+    notification.success({
+        message: '回复成功',
+        description: `已成功处理留言 #${currentMessage.value.id}`
+      });
+      
+      // 关闭抽屉
+      drawerVisible.value = false;
+      currentMessage.value = null;
+      
+      // 刷新留言列表
+      fetchMessages();
+  } catch (error) {
+    message.error('回复失败');
+    console.error('回复失败:', error);
+  } finally {
     replying.value = false;
-    
-    // 刷新留言列表
-    fetchMessages();
-  }, 1000);
+  }
 };
 
 // 关闭留言
-const handleClose = (record) => {
-  // 模拟API请求
-  setTimeout(() => {
+const handleClose = async (record) => {
+  try {
+   await axios.put(`/messages/${record.id}/status`, null, {
+      params: { status: 'CLOSED' }
+    });
+
     message.success('留言已关闭');
     fetchMessages();
-  }, 500);
+  } catch (error) {
+    message.error('关闭留言失败');
+    console.error('关闭留言失败:', error);
+  }
+};
+
+// 删除留言
+const handleDelete = async (record) => {
+  await axios.delete(`/messages/${record.id}`);
+  fetchMessages();
 };
 
 onMounted(() => {
@@ -353,14 +269,6 @@ onMounted(() => {
             />
           </a-form-item>
           
-          <a-form-item label="用户名">
-            <a-input v-model:value="filters.username" placeholder="请输入用户名" allowClear />
-          </a-form-item>
-          
-          <a-form-item label="留言时间">
-            <a-range-picker v-model:value="filters.timeRange" style="width: 250px" />
-          </a-form-item>
-          
           <a-form-item>
             <a-space>
               <a-button type="primary" @click="handleSearch">查询</a-button>
@@ -387,12 +295,14 @@ onMounted(() => {
                 type="link" 
                 size="small" 
                 @click="() => handleReply(record)"
+                v-if="record.status === 'PENDING'"
+                :disabled="record.status === 'CLOSED'"
               >
-                {{ record.status === 'replied' ? '查看回复' : '回复' }}
+                {{ record.status === 'PROCESSED' ? '已处理' : '处理' }}
               </a-button>
               
               <a-popconfirm
-                v-if="record.status !== 'closed'"
+                v-if="record.status !== 'CLOSED'"
                 title="确定要关闭这条留言吗?"
                 ok-text="是"
                 cancel-text="否"
@@ -400,14 +310,24 @@ onMounted(() => {
               >
                 <a-button type="link" danger size="small">关闭</a-button>
               </a-popconfirm>
+
+              <a-popconfirm
+                v-if="record.status === 'CLOSED'"
+                title="确定要删除这条留言吗?"
+                ok-text="是"
+                cancel-text="否"
+                @confirm="() => handleDelete(record)"
+              >
+                <a-button type="link" danger size="small">删除</a-button>
+              </a-popconfirm>
             </a-space>
           </template>
         </template>
       </a-table>
       
-      <!-- 回复抽屉 -->
+      <!-- 留言详情抽屉 -->
       <a-drawer
-        :title="`留言详情 - ${currentMessage?.username || ''}`"
+        :title="`留言详情 #${currentMessage?.id || ''}`"
         width="500"
         :visible="drawerVisible"
         @close="onDrawerClose"
@@ -415,6 +335,9 @@ onMounted(() => {
       >
         <template v-if="currentMessage">
           <a-descriptions bordered :column="1">
+            <a-descriptions-item label="用户ID">
+              {{ currentMessage.userId }}
+            </a-descriptions-item>
             <a-descriptions-item label="留言类型">
               {{ messageTypeText(currentMessage.type) }}
             </a-descriptions-item>
@@ -422,40 +345,31 @@ onMounted(() => {
               {{ currentMessage.content }}
             </a-descriptions-item>
             <a-descriptions-item label="留言时间">
-              {{ currentMessage.createTime }}
+              {{ currentMessage.createdAt }}
             </a-descriptions-item>
             <a-descriptions-item label="状态">
               <a-tag :color="
-                currentMessage.status === 'pending' ? 'orange' : 
-                currentMessage.status === 'replied' ? 'green' : 'gray'
+                currentMessage.status === 'PENDING' ? 'orange' : 
+                currentMessage.status === 'PROCESSED' ? 'green' : 'gray'
               ">
                 {{ 
-                  currentMessage.status === 'pending' ? '待处理' : 
-                  currentMessage.status === 'replied' ? '已回复' : '已关闭'
+                  currentMessage.status === 'PENDING' ? '待处理' : 
+                  currentMessage.status === 'PROCESSED' ? '已处理' : '已关闭'
                 }}
               </a-tag>
-            </a-descriptions-item>
-            <a-descriptions-item v-if="currentMessage.replyTime" label="回复时间">
-              {{ currentMessage.replyTime }}
             </a-descriptions-item>
           </a-descriptions>
           
           <div class="reply-form">
             <div class="reply-title">
-              <span>回复内容</span>
+              <span>处理留言</span>
               <a-tag 
-                v-if="currentMessage.status === 'closed'" 
+                v-if="currentMessage.status === 'CLOSED'" 
                 color="gray"
               >
-                已关闭，无法回复
+                已关闭，无法处理
               </a-tag>
             </div>
-            <a-textarea
-              v-model:value="replyContent"
-              placeholder="请输入回复内容..."
-              :rows="4"
-              :disabled="currentMessage.status === 'closed'"
-            />
             
             <div class="drawer-footer">
               <a-button style="margin-right: 8px" @click="onDrawerClose">取消</a-button>
@@ -463,9 +377,9 @@ onMounted(() => {
                 type="primary" 
                 :loading="replying"
                 @click="submitReply"
-                :disabled="currentMessage.status === 'closed'"
+                :disabled="currentMessage.status !== 'PENDING'"
               >
-                提交回复
+                标记为已处理
               </a-button>
             </div>
           </div>

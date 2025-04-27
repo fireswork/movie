@@ -1,6 +1,11 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import axios from '@/services/request'
+import { DeleteOutlined } from '@ant-design/icons-vue'
+import dayjs from 'dayjs'
+
+const userInfo = ref(JSON.parse(localStorage.getItem('user')))
 
 // 留言列表数据
 const messageList = ref([])
@@ -39,90 +44,23 @@ const pagination = reactive({
 })
 
 // 获取留言历史
-const fetchMessages = () => {
+const fetchMessages = async () => {
   loading.value = true
-
-  // 模拟API请求
-  setTimeout(() => {
-    // 模拟留言数据
-    const mockMessages = []
-    const total = 23 // 模拟总数
-
-    for (let i = 1; i <= total; i++) {
-      const statusOptions = ['pending', 'replied', 'closed']
-      const status = statusOptions[Math.floor(Math.random() * statusOptions.length)]
-
-      const typeOptions = ['suggestion', 'content', 'technical', 'other']
-      const type = typeOptions[Math.floor(Math.random() * typeOptions.length)]
-
-      const messageTemplates = [
-        '希望能增加更多的电影分类，比如体育类电影专区',
-        '最近上映的某某电影质量不太好，希望能提高上架电影的筛选标准',
-        '网站加载速度有些慢，希望能优化一下',
-        '能否增加更多支付方式，比如支持支付宝',
-        '页面上的部分链接点击无反应',
-        '希望能增加电影推荐功能，根据我看过的电影推荐新片',
-        '有些电影描述与实际内容不符，请审核',
-        '能否增加电影预告片功能',
-        '希望可以增加电影评分排行榜功能',
-        '个人中心页面布局有点混乱，希望优化',
-      ]
-
-      const randomMessage = messageTemplates[Math.floor(Math.random() * messageTemplates.length)]
-
-      // 随机生成一个月内的时间
-      const date = new Date()
-      date.setDate(date.getDate() - Math.floor(Math.random() * 30))
-      const createTime = date.toISOString().replace('T', ' ').substring(0, 19)
-
-      // 如果状态为已回复，生成回复内容和时间
-      let replyContent = null
-      let replyTime = null
-
-      if (status === 'replied') {
-        const replyTemplates = [
-          '感谢您的反馈，我们会认真考虑您的建议',
-          '您好，我们已经收到您的反馈，技术团队正在处理相关问题',
-          '非常感谢您的建议，我们会在下一版本中考虑添加该功能',
-          '您反馈的问题已经修复，请刷新页面后重试',
-          '我们已经将您的意见转达给相关部门，感谢您的支持',
-        ]
-
-        replyContent = replyTemplates[Math.floor(Math.random() * replyTemplates.length)]
-
-        // 回复时间比创建时间晚1-3天
-        const replyDate = new Date(date)
-        replyDate.setDate(replyDate.getDate() + Math.floor(Math.random() * 3) + 1)
-        replyTime = replyDate.toISOString().replace('T', ' ').substring(0, 19)
-      }
-
-      mockMessages.push({
-        id: i,
-        content: randomMessage,
-        type,
-        status,
-        createTime,
-        replyContent,
-        replyTime,
-      })
-    }
-
-    // 按创建时间倒序排序
-    mockMessages.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
-
-    // 分页
-    const start = (pagination.current - 1) * pagination.pageSize
-    const end = start + pagination.pageSize
-    const paginatedData = mockMessages.slice(start, end)
-
-    messageList.value = paginatedData
-    pagination.total = mockMessages.length
+  try {
+    const userId = userInfo.value.userId
+    const { data } = await axios.get(`/messages/user/${userId}`)
+    messageList.value = data
+    pagination.total = data.length
+  } catch (error) {
+    message.error('获取留言列表失败')
+    console.error('获取留言列表失败:', error)
+  } finally {
     loading.value = false
-  }, 800)
+  }
 }
 
 // 提交留言
-const handleSubmit = () => {
+const handleSubmit = async () => {
   // 表单验证
   if (!messageForm.content) {
     message.error('请输入留言内容')
@@ -130,19 +68,26 @@ const handleSubmit = () => {
   }
 
   submitting.value = true
+  try {
+    const userId = userInfo.value.userId
+    await axios.post('/messages', {
+      userId,
+      content: messageForm.content,
+      status: 'PENDING',
+      type: messageForm.type,
+    })
 
-  // 模拟API请求
-  setTimeout(() => {
     message.success('留言提交成功')
-
     // 清空表单
     messageForm.content = ''
-
     // 重新获取留言列表
     fetchMessages()
-
+  } catch (error) {
+    message.error('留言提交失败')
+    console.error('留言提交失败:', error)
+  } finally {
     submitting.value = false
-  }, 1000)
+  }
 }
 
 // 表格分页变化时的回调
@@ -166,11 +111,17 @@ const messageTypeText = (type) => {
 // 映射留言状态到显示文本和颜色
 const messageStatusInfo = (status) => {
   const map = {
-    pending: { text: '待处理', color: 'orange' },
-    replied: { text: '已回复', color: 'green' },
-    closed: { text: '已关闭', color: 'gray' },
+    PENDING: { text: '待处理', color: 'orange' },
+    PROCESSED: { text: '已回复', color: 'green' },
+    CLOSED: { text: '已关闭', color: 'gray' },
   }
   return map[status] || { text: status, color: 'default' }
+}
+
+const handleDelete = async (id) => {
+  await axios.delete(`/messages/${id}`)
+  message.success('留言删除成功')
+  fetchMessages()
 }
 
 onMounted(() => {
@@ -226,7 +177,6 @@ onMounted(() => {
           <a-list
             v-else
             item-layout="vertical"
-            :pagination="pagination"
             :data-source="messageList"
             @change="handleTableChange"
           >
@@ -236,13 +186,17 @@ onMounted(() => {
                   <a-tag :color="messageStatusInfo(item.status).color">
                     {{ messageStatusInfo(item.status).text }}
                   </a-tag>
+                  <a-button type="link" @click="handleDelete(item.id)">
+                      <delete-outlined />
+                    </a-button>
                 </template>
 
                 <a-list-item-meta>
+                  
                   <template #title>
                     <div class="message-meta">
                       <span class="message-type">[ {{ messageTypeText(item.type) }} ]</span>
-                      <span class="message-time">{{ item.createTime }}</span>
+                      <span class="message-time">{{ dayjs(item.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
                     </div>
                   </template>
                   <template #description>
