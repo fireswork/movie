@@ -143,6 +143,22 @@ const fetchRegions = async () => {
   }
 }
 
+// 获取所有电影的互动状态
+const fetchAllInteractions = async () => {
+  try {
+    const { data } = await request.get(`/movie-interactions/user/${userStore.userId}`)
+    // 将数组转换为以movieId为key的对象
+    const interactionsMap = {}
+    data.forEach(interaction => {
+      interactionsMap[interaction.movieId] = interaction
+    })
+    interactionStatus.value = interactionsMap
+    console.log('所有互动状态:', interactionStatus.value)
+  } catch (error) {
+    console.error('获取互动状态失败:', error)
+  }
+}
+
 // 获取电影列表
 const fetchMovies = async () => {
   try {
@@ -150,8 +166,8 @@ const fetchMovies = async () => {
     allMovies.value = data
     // 检查每部电影的收藏状态
     await Promise.all(data.map((movie) => checkCollectionStatus(movie.id)))
-    // 检查每部电影的互动状态
-    await Promise.all(data.map((movie) => fetchInteractionStatus(movie.id)))
+    // 一次性获取所有互动状态
+    await fetchAllInteractions()
     updatePagination()
   } catch (error) {
     console.error('获取电影列表失败:', error)
@@ -256,19 +272,6 @@ const confirmCollection = async () => {
   }
 }
 
-// 获取电影互动状态
-const fetchInteractionStatus = async (movieId) => {
-  try {
-    const { data } = await request.get(
-      `/movie-interactions/user/${userStore.userId}/movie/${movieId}`,
-    )
-    interactionStatus.value[movieId] = data
-    console.log(interactionStatus.value)
-  } catch (error) {
-    console.error('获取互动状态失败:', error)
-  }
-}
-
 // 切换点赞状态
 const toggleLike = async (movie, event) => {
   event.stopPropagation()
@@ -281,7 +284,8 @@ const toggleLike = async (movie, event) => {
     }
 
     await request.put(`/movie-interactions/user/${userStore.userId}/movie/${movie.id}`, interaction)
-    fetchInteractionStatus(movie.id)
+    // 重新获取所有互动状态
+    await fetchAllInteractions()
   } catch (error) {
     console.error('点赞操作失败:', error)
   }
@@ -307,12 +311,12 @@ const submitRating = async () => {
       comment: currentStatus.comment,
     }
 
-    const { data } = await request.put(
+    await request.put(
       `/movie-interactions/user/${userStore.userId}/movie/${selectedMovie.value.id}`,
       interaction,
     )
-
-    interactionStatus.value[selectedMovie.value.id] = data
+    // 重新获取所有互动状态
+    await fetchAllInteractions()
     ratingModalVisible.value = false
     selectedMovie.value = null
   } catch (error) {
@@ -340,12 +344,12 @@ const submitComment = async () => {
       comment: currentComment.value.trim(),
     }
 
-    const { data } = await request.put(
+    await request.put(
       `/movie-interactions/user/${userStore.userId}/movie/${selectedMovie.value.id}`,
       interaction,
     )
-
-    interactionStatus.value[selectedMovie.value.id] = data
+    // 重新获取所有互动状态
+    await fetchAllInteractions()
     commentModalVisible.value = false
     selectedMovie.value = null
     currentComment.value = ''
@@ -365,12 +369,12 @@ const deleteComment = async (movie, event) => {
       comment: null,
     }
 
-    const { data } = await request.put(
+    await request.put(
       `/movie-interactions/user/${userStore.userId}/movie/${movie.id}`,
       interaction,
     )
-
-    interactionStatus.value[movie.id] = data
+    // 重新获取所有互动状态
+    await fetchAllInteractions()
   } catch (error) {
     console.error('删除评论失败:', error)
   }
@@ -484,6 +488,7 @@ onMounted(() => {
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
             <p class="movie-meta text-ellipsis">{{ movie.duration }}分钟 | {{ movie.year }}</p>
             <p class="movie-actors text-ellipsis">{{ movie.actors || '暂无主演信息' }}</p>
+            <p>{{  movie.region  }}</p>
             <div class="movie-footer">
               <div class="movie-stats">
                 <span class="play-count">播放: {{ movie.playCount }}</span>

@@ -6,12 +6,20 @@ import com.movie.common.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/movie-interactions")
 public class MovieInteractionController {
 
     @Autowired
     private MovieInteractionRepository movieInteractionRepository;
+
+    @GetMapping("/user/{userId}")
+    public ApiResponse<List<MovieInteraction>> getUserInteractions(@PathVariable Long userId) {
+        List<MovieInteraction> interactions = movieInteractionRepository.findByUserId(userId);
+        return ApiResponse.success(interactions, "获取成功");
+    }
 
     @GetMapping("/user/{userId}/movie/{movieId}")
     public ApiResponse<MovieInteraction> getInteraction(
