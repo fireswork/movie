@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { PlayCircleOutlined, HeartOutlined, HeartFilled } from '@ant-design/icons-vue'
+import { PlayCircleOutlined, HeartOutlined, HeartFilled, LikeOutlined, LikeFilled, StarOutlined, MessageOutlined } from '@ant-design/icons-vue'
 import request from '@/services/request'
 
 const router = useRouter()
@@ -44,6 +44,13 @@ const selectedMovie = ref(null)
 const userCollections = ref([])
 const collectionStatus = ref({})
 const selectedCollectionId = ref(null)
+
+// 互动相关状态
+const interactionStatus = ref({})
+const ratingModalVisible = ref(false)
+const commentModalVisible = ref(false)
+const currentRating = ref(0)
+const currentComment = ref('')
 
 // 筛选后的电影列表
 const filteredMovies = computed(() => {
@@ -133,6 +140,8 @@ const fetchMovies = async () => {
     allMovies.value = data
     // 检查每部电影的收藏状态
     await Promise.all(data.map((movie) => checkCollectionStatus(movie.id)))
+    // 检查每部电影的互动状态
+    await Promise.all(data.map(movie => fetchInteractionStatus(movie.id)))
     updatePagination()
   } catch (error) {
     console.error('获取电影列表失败:', error)
@@ -235,6 +244,109 @@ const confirmCollection = async () => {
     selectedCollectionId.value = null
   } catch (error) {
     console.error('添加到收藏夹失败:', error)
+  }
+}
+
+// 获取电影互动状态
+const fetchInteractionStatus = async (movieId) => {
+  try {
+    const { data } = await request.get(`/movie-interactions/user/${userStore.userId}/movie/${movieId}`)
+    if (data) {
+      interactionStatus.value[movieId] = data
+    }
+  } catch (error) {
+    console.error('获取互动状态失败:', error)
+  }
+}
+
+// 切换点赞状态
+const toggleLike = async (movie, event) => {
+  event.stopPropagation()
+  try {
+    const { data } = await request.post('/movie-interactions/like', null, {
+      params: {
+        userId: userStore.userId,
+        movieId: movie.id
+      }
+    })
+    interactionStatus.value[movie.id] = data
+  } catch (error) {
+    console.error('点赞操作失败:', error)
+  }
+}
+
+// 显示评分对话框
+const showRatingModal = (movie, event) => {
+  event.stopPropagation()
+  selectedMovie.value = movie
+  currentRating.value = interactionStatus.value[movie.id]?.rating || 0
+  ratingModalVisible.value = true
+}
+
+// 提交评分
+const submitRating = async () => {
+  if (!currentRating.value) return
+
+  try {
+    const { data } = await request.post('/movie-interactions/rate', null, {
+      params: {
+        userId: userStore.userId,
+        movieId: selectedMovie.value.id,
+        rating: currentRating.value
+      }
+    })
+    interactionStatus.value[selectedMovie.value.id] = data
+    ratingModalVisible.value = false
+    selectedMovie.value = null
+  } catch (error) {
+    console.error('评分失败:', error)
+  }
+}
+
+// 显示评论对话框
+const showCommentModal = (movie, event) => {
+  event.stopPropagation()
+  selectedMovie.value = movie
+  currentComment.value = interactionStatus.value[movie.id]?.comment || ''
+  commentModalVisible.value = true
+}
+
+// 提交评论
+const submitComment = async () => {
+  if (!currentComment.value.trim()) return
+
+  try {
+    const { data } = await request.post('/movie-interactions/comment', null, {
+      params: {
+        userId: userStore.userId,
+        movieId: selectedMovie.value.id,
+        comment: currentComment.value.trim()
+      }
+    })
+    interactionStatus.value[selectedMovie.value.id] = data
+    commentModalVisible.value = false
+    selectedMovie.value = null
+    currentComment.value = ''
+  } catch (error) {
+    console.error('评论失败:', error)
+  }
+}
+
+// 删除评论
+const deleteComment = async (movie, event) => {
+  event.stopPropagation()
+  try {
+    await request.delete('/movie-interactions/comment', {
+      params: {
+        userId: userStore.userId,
+        movieId: movie.id
+      }
+    })
+    if (interactionStatus.value[movie.id]) {
+      interactionStatus.value[movie.id].comment = null
+    }
+  } catch (error) {
+    console.error('删除评论失败:', error)
   }
 }
 
@@ -368,6 +480,29 @@ onMounted(() => {
                     <heart-outlined v-else />
                   </template>
                 </a-button>
+                <a-button 
+                  type="text"
+                  :danger="interactionStatus[movie.id]?.isLiked"
+                  @click="(e) => toggleLike(movie, e)"
+                >
+                  <template #icon>
+                    <like-filled v-if="interactionStatus[movie.id]?.isLiked" />
+                    <like-outlined v-else />
+                  </template>
+                </a-button>
+                <a-button 
+                  type="text"
+                  @click="(e) => showRatingModal(movie, e)"
+                >
+                  {{ interactionStatus[movie.id]?.rating || '评分' }}
+                </a-button>
+                <a-button 
+                  type="text"
+                  @click="(e) => showCommentModal(movie, e)"
+                >
+                  <template #icon><message-outlined /></template>
+                  {{ interactionStatus[movie.id]?.comment ? '修改评论' : '评论' }}
+                </a-button>
               </div>
             </div>
           </div>
@@ -419,6 +554,38 @@ onMounted(() => {
             {{ collection.name }}
           </a-radio>
         </a-radio-group>
+      </div>
+    </a-modal>
+
+    <!-- 评分对话框 -->
+    <a-modal
+      v-model:open="ratingModalVisible"
+      title="电影评分"
+      @ok="submitRating"
+      :okButtonProps="{ disabled: !currentRating }"
+    >
+      <div class="rating-content">
+        <h3>{{ selectedMovie?.title }}</h3>
+        <a-rate v-model:value="currentRating" />
+      </div>
+    </a-modal>
+
+    <!-- 评论对话框 -->
+    <a-modal
+      v-model:open="commentModalVisible"
+      title="电影评论"
+      @ok="submitComment"
+      :okButtonProps="{ disabled: !currentComment.trim() }"
+    >
+      <div class="comment-content">
+        <h3>{{ selectedMovie?.title }}</h3>
+        <a-textarea
+          v-model:value="currentComment"
+          :rows="4"
+          placeholder="写下你的观后感..."
+          :maxLength="1000"
+          showCount
+        />
       </div>
     </a-modal>
   </div>
@@ -594,11 +761,12 @@ onMounted(() => {
 .movie-actions-bottom {
   margin-top: 8px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
 }
 
 .movie-actions-bottom .ant-btn {
   padding: 0 8px;
+  flex: 1;
 }
 
 .movie-actions-bottom .ant-btn:hover {
@@ -609,22 +777,17 @@ onMounted(() => {
   margin-right: 4px;
 }
 
-.collection-radio-group {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.rating-content,
+.comment-content {
+  text-align: center;
 }
 
-.collection-radio-item {
-  line-height: 40px;
-  padding: 0 16px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-  display: flex;
+.rating-content h3,
+.comment-content h3 {
+  margin-bottom: 16px;
 }
 
-.collection-radio-item:hover {
-  background-color: #f5f5f5;
+.comment-content .ant-input {
+  margin-top: 16px;
 }
 </style>
