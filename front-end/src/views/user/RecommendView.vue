@@ -1,142 +1,79 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from '@/services/request'
+import { message } from 'ant-design-vue'
 
 const router = useRouter()
+const userInfo = ref(JSON.parse(localStorage.getItem('user')))
 
 // 筛选表单
 const filterForm = reactive({
-  categories: [],
-  region: undefined,
-  yearRange: [1970, 2023],
-  duration: undefined,
-  priceRange: [0, 100],
+  categoryId: undefined,
+  regionId: undefined,
+  year: undefined,
+  maxPrice: undefined
 })
 
-// 模拟分类数据
-const categories = ref([
-  { label: '动作', value: 'action' },
-  { label: '喜剧', value: 'comedy' },
-  { label: '爱情', value: 'romance' },
-  { label: '科幻', value: 'scifi' },
-  { label: '恐怖', value: 'horror' },
-  { label: '动画', value: 'animation' },
-  { label: '剧情', value: 'drama' },
-  { label: '战争', value: 'war' },
-])
+// 分类数据
+const categories = ref([])
+const regions = ref([])
 
-// 模拟地区数据
-const regions = ref([
-  { label: '全部', value: '' },
-  { label: '中国大陆', value: 'china' },
-  { label: '中国香港', value: 'hongkong' },
-  { label: '中国台湾', value: 'taiwan' },
-  { label: '美国', value: 'usa' },
-  { label: '韩国', value: 'korea' },
-  { label: '日本', value: 'japan' },
-  { label: '法国', value: 'france' },
-  { label: '英国', value: 'uk' },
-])
-
-// 时长选项
-const durations = ref([
-  { label: '全部', value: '' },
-  { label: '90分钟以下', value: '<90' },
-  { label: '90-120分钟', value: '90-120' },
-  { label: '120分钟以上', value: '>120' },
-])
-
-// 模拟推荐电影数据
-const recommendedMovies = ref([
-  {
-    id: 1,
-    title: '肖申克的救赎',
-    cover: 'https://via.placeholder.com/300x450?text=肖申克的救赎',
-    rating: 9.7,
-    price: 15,
-    matchScore: 98,
-    categories: ['剧情', '犯罪'],
-    region: '美国',
-    year: 1994,
-    duration: 142,
-  },
-  {
-    id: 2,
-    title: '霸王别姬',
-    cover: 'https://via.placeholder.com/300x450?text=霸王别姬',
-    rating: 9.6,
-    price: 12,
-    matchScore: 96,
-    categories: ['剧情', '爱情'],
-    region: '中国香港',
-    year: 1993,
-    duration: 171,
-  },
-  {
-    id: 3,
-    title: '阿甘正传',
-    cover: 'https://via.placeholder.com/300x450?text=阿甘正传',
-    rating: 9.5,
-    price: 14,
-    matchScore: 95,
-    categories: ['剧情', '爱情'],
-    region: '美国',
-    year: 1994,
-    duration: 142,
-  },
-])
-
-// 生成更多模拟数据
-for (let i = 4; i <= 20; i++) {
-  const randomCategory = categories.value[Math.floor(Math.random() * categories.value.length)].label
-  const randomRegion = regions.value[Math.floor(Math.random() * regions.value.length)].label
-  const randomYear = Math.floor(Math.random() * (2023 - 1970)) + 1970
-  const randomDuration = Math.floor(Math.random() * 100) + 90
-  const randomPrice = Math.floor(Math.random() * 20) + 5
-  const randomRating = (Math.random() * 2 + 7).toFixed(1)
-  const randomMatchScore = Math.floor(Math.random() * 30) + 65
-
-  recommendedMovies.value.push({
-    id: i,
-    title: `电影${i}`,
-    cover: `https://via.placeholder.com/300x450?text=电影${i}`,
-    rating: randomRating,
-    price: randomPrice,
-    matchScore: randomMatchScore,
-    categories: [randomCategory],
-    region: randomRegion,
-    year: randomYear,
-    duration: randomDuration,
-  })
+// 获取分类和地区数据
+const fetchOptions = async () => {
+  try {
+    const [categoriesRes, regionsRes] = await Promise.all([
+      axios.get('/categories'),
+      axios.get('/regions')
+    ])
+    categories.value = categoriesRes.data.map(item => ({
+      label: item.name,
+      value: item.id
+    }))
+    regions.value = regionsRes.data.map(item => ({
+      label: item.name,
+      value: item.id
+    }))
+  } catch (error) {
+    message.error('获取筛选选项失败')
+    console.error('获取筛选选项失败:', error)
+  }
 }
 
+// 推荐电影数据
+const recommendedMovies = ref([])
 const loading = ref(false)
 
-// 方法
-const handleRecommend = () => {
-  loading.value = true
+// 获取推荐电影
+const handleRecommend = async () => {
+  if (!userInfo.value) {
+    message.error('请先登录')
+    return
+  }
 
-  // 模拟推荐请求
-  setTimeout(() => {
+  loading.value = true
+  try {
+    const { data } = await axios.post(`/recommend?userId=${userInfo.value.userId}`, filterForm)
+    recommendedMovies.value = data
+  } catch (error) {
+    message.error('获取推荐失败')
+    console.error('获取推荐失败:', error)
+  } finally {
     loading.value = false
-    // 在实际应用中，这里会根据筛选条件获取推荐结果
-  }, 1000)
+  }
 }
 
 const handleResetFilter = () => {
-  filterForm.categories = []
-  filterForm.region = undefined
-  filterForm.yearRange = [1970, 2023]
-  filterForm.duration = undefined
-  filterForm.priceRange = [0, 100]
+  filterForm.categoryId = undefined
+  filterForm.regionId = undefined
+  filterForm.year = undefined
+  filterForm.maxPrice = undefined
 }
 
-const goToMovie = (id) => {
-  router.push(`/movie/${id}`)
-}
 
 onMounted(() => {
-  // 可以在这里加载初始推荐数据
+  fetchOptions()
+  handleRecommend()
 })
 </script>
 
@@ -148,49 +85,51 @@ onMounted(() => {
 
       <a-form :model="filterForm" layout="vertical">
         <a-row :gutter="16">
-          <a-col :span="24" :md="8">
-            <a-form-item label="类型偏好">
+          <a-col :span="24" :md="12">
+            <a-form-item label="类型">
               <a-select
-                v-model:value="filterForm.categories"
-                mode="multiple"
+                v-model:value="filterForm.categoryId"
                 :options="categories"
-                placeholder="请选择喜欢的类型"
+                placeholder="请选择类型"
+                allowClear
                 style="width: 100%"
               />
             </a-form-item>
           </a-col>
 
-          <a-col :span="24" :md="8">
-            <a-form-item label="地区偏好">
+          <a-col :span="24" :md="12">
+            <a-form-item label="地区">
               <a-select
-                v-model:value="filterForm.region"
+                v-model:value="filterForm.regionId"
                 :options="regions"
-                placeholder="请选择喜欢的地区"
-                style="width: 100%"
-              />
-            </a-form-item>
-          </a-col>
-
-          <a-col :span="24" :md="8">
-            <a-form-item label="电影时长">
-              <a-select
-                v-model:value="filterForm.duration"
-                :options="durations"
-                placeholder="请选择时长"
+                placeholder="请选择地区"
+                allowClear
                 style="width: 100%"
               />
             </a-form-item>
           </a-col>
 
           <a-col :span="24" :md="12">
-            <a-form-item label="年份范围">
-              <a-slider v-model:value="filterForm.yearRange" range :min="1970" :max="2023" />
+            <a-form-item label="年份">
+              <a-input-number
+                v-model:value="filterForm.year"
+                :min="1970"
+                :max="2025"
+                placeholder="请选择年份"
+                style="width: 100%"
+              />
             </a-form-item>
           </a-col>
 
           <a-col :span="24" :md="12">
-            <a-form-item label="价格范围(元)">
-              <a-slider v-model:value="filterForm.priceRange" range :min="0" :max="100" />
+            <a-form-item label="最高价格">
+              <a-input-number
+                v-model:value="filterForm.maxPrice"
+                :min="0"
+                :max="1000"
+                placeholder="请输入最高价格"
+                style="width: 100%"
+              />
             </a-form-item>
           </a-col>
         </a-row>
@@ -198,9 +137,7 @@ onMounted(() => {
         <a-row :gutter="16">
           <a-col :span="24">
             <div class="filter-buttons">
-              <a-button type="primary" @click="handleRecommend" :loading="loading"
-                >生成推荐</a-button
-              >
+              <a-button type="primary" @click="handleRecommend" :loading="loading">生成推荐</a-button>
               <a-button @click="handleResetFilter">重置</a-button>
             </div>
           </a-col>
@@ -211,40 +148,26 @@ onMounted(() => {
     <div class="recommend-result content-card">
       <h2>为您推荐</h2>
 
-      <div class="movie-grid">
+      <a-empty v-if="recommendedMovies.length === 0" description="暂无推荐电影" />
+
+      <div v-else class="movie-grid">
         <div
           v-for="movie in recommendedMovies"
           :key="movie.id"
           class="movie-card hover-scale"
-          @click="() => goToMovie(movie.id)"
         >
           <div class="movie-cover-wrapper">
-            <img :src="movie.cover" alt="" class="movie-cover" />
-            <div class="movie-match-score">
-              <a-progress
-                type="circle"
-                :percent="movie.matchScore"
-                :width="40"
-                :strokeColor="
-                  movie.matchScore >= 90
-                    ? '#52c41a'
-                    : movie.matchScore >= 80
-                      ? '#1677ff'
-                      : '#faad14'
-                "
-                :format="(percent) => `${percent}%`"
-              />
-            </div>
+            <img :src="movie.coverBase64" alt="" class="movie-cover" />
           </div>
           <div class="movie-info">
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
             <p class="movie-meta text-ellipsis">
-              {{ movie.categories.join('/') }} | {{ movie.region }}
+              {{ movie.categories }} | {{ movie.region }}
             </p>
             <p class="movie-meta text-ellipsis">{{ movie.year }} | {{ movie.duration }}分钟</p>
             <div class="movie-rating-price">
               <span class="movie-rating">{{ movie.rating }}分</span>
-              <span class="movie-price price-tag">¥{{ movie.price }}</span>
+              <span class="movie-price price-tag">{{ movie.isFree ? '免费' : `¥${movie.price}` }}</span>
             </div>
           </div>
         </div>
@@ -310,15 +233,6 @@ onMounted(() => {
   display: block;
 }
 
-.movie-match-score {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background-color: rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  padding: 2px;
-}
-
 .movie-info {
   padding: 12px;
 }
@@ -359,11 +273,6 @@ onMounted(() => {
 
   .movie-meta {
     font-size: 10px;
-  }
-
-  .movie-match-score {
-    transform: scale(0.8);
-    transform-origin: top right;
   }
 }
 </style>

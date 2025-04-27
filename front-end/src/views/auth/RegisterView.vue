@@ -16,6 +16,7 @@ const registerForm = reactive({
   gender: 'male',
   age: null,
   phone: '',
+  profession: '',
 })
 
 const handleRegister = () => {
@@ -34,7 +35,6 @@ const handleRegister = () => {
         router.push('/login')
       } catch (error) {
         console.error('注册失败:', error)
-        message.error(error.message || '注册失败，请稍后再试')
       } finally {
         loading.value = false
       }
@@ -73,6 +73,7 @@ const registerRules = {
   phone: [
     { required: true, pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' },
   ],
+  profession: [{ required: true, message: '请输入职业', trigger: 'blur' }],
 }
 </script>
 
@@ -115,6 +116,14 @@ const registerRules = {
             <a-input-number
               v-model:value="registerForm.age"
               placeholder="请输入年龄"
+              size="large"
+            />
+          </a-form-item>
+
+          <a-form-item name="profession" label="职业">
+            <a-input
+              v-model:value="registerForm.profession"
+              placeholder="请输入职业"
               size="large"
             />
           </a-form-item>

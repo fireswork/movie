@@ -1,5 +1,8 @@
 <script setup lang="jsx">
 import { ref, reactive, onMounted } from 'vue';
+import axios from '@/services/request';
+import { message } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
 // 评论列表数据
 const commentList = ref([]);
@@ -7,12 +10,28 @@ const commentList = ref([]);
 // 加载状态
 const loading = ref(false);
 
+const users = ref([]);
+
+const movies = ref([]);
+
+// 评论详情抽屉
+const drawerVisible = ref(false);
+const currentComment = ref(null);
+
+// 编辑评论对话框
+const editModalVisible = ref(false);
+const editForm = reactive({
+  id: null,
+  userId: null,
+  movieId: null,
+  comment: '',
+  rating: null
+});
+
 // 筛选条件
 const filters = reactive({
-  content: '',
-  movieName: '',
-  username: '',
-  status: undefined
+  userId: undefined,
+  movieId: undefined
 });
 
 // 分页参数
@@ -24,221 +43,136 @@ const pagination = reactive({
   pageSizeOptions: ['10', '20', '50', '100']
 });
 
-// 评论状态选项
-const commentStatusOptions = [
-  { label: '全部', value: '' },
-  { label: '已通过', value: 'approved' },
-  { label: '待审核', value: 'pending' },
-  { label: '已拒绝', value: 'rejected' }
-];
+// 新增评论对话框
+const addModalVisible = ref(false);
+const addForm = reactive({
+  userId: null,
+  movieId: null,
+  comment: '',
+  rating: null,
+  liked: false
+});
 
-// 模拟电影列表
-const movies = [
-  { id: 1, title: '肖申克的救赎' },
-  { id: 2, title: '霸王别姬' },
-  { id: 3, title: '阿甘正传' },
-  { id: 4, title: '泰坦尼克号' },
-  { id: 5, title: '这个杀手不太冷' },
-  { id: 6, title: '美丽人生' },
-  { id: 7, title: '千与千寻' },
-  { id: 8, title: '辛德勒的名单' },
-  { id: 9, title: '盗梦空间' },
-  { id: 10, title: '星际穿越' }
-];
+const getUsers = async () => {
+  const { data } = await axios.get('/users')
+  users.value = data.content.map(item => ({
+    label: item.username,
+    value: item.id
+  }))
+}
 
-// 模拟用户列表
-const users = [
-  { id: 1, username: '用户1' },
-  { id: 2, username: '用户2' },
-  { id: 3, username: '用户3' },
-  { id: 4, username: '用户4' },
-  { id: 5, username: '用户5' },
-  { id: 6, username: '用户6' },
-  { id: 7, username: '用户7' },
-  { id: 8, username: '用户8' },
-  { id: 9, username: '用户9' },
-  { id: 10, username: '用户10' }
-];
+const getMovies = async () => {
+  const { data } = await axios.get('/movies')
+  movies.value = data.map(item => ({
+    label: item.title,
+    value: item.id
+  }))
+}
 
 // 表格列定义
 const columns = [
   {
-    title: 'ID',
-    dataIndex: 'id',
-    key: 'id',
-    width: 80
+    title: '用户',
+    dataIndex: 'userId',
+    key: 'userId',
+    width: 100,
+    customRender: ({ text }) => {
+      return users?.value?.find(item => item.value === text)?.label
+    }
   },
   {
-    title: '用户名',
-    dataIndex: 'username',
-    key: 'username',
-    width: 120
-  },
-  {
-    title: '电影名称',
-    dataIndex: 'movieName',
-    key: 'movieName',
-    width: 150
-  },
-  {
-    title: '评论内容',
-    dataIndex: 'content',
-    key: 'content',
-    ellipsis: true
+    title: '电影',
+    dataIndex: 'movieId',
+    key: 'movieId',
+    width: 100,
+    customRender: ({ text }) => {
+      return movies?.value?.find(item => item.value === text)?.label
+    }
   },
   {
     title: '评分',
     dataIndex: 'rating',
     key: 'rating',
-    width: 80,
+    width: 100,
     customRender: ({ text }) => {
-      // 使用星星图标显示评分
-      const fullStars = Math.floor(text);
-      const halfStar = text % 1 >= 0.5;
-      const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
-      
-      return (
-        <div>
-          {Array(fullStars).fill().map((_, i) => (
-            <star-filled key={`full-${i}`} style="color: #fadb14; margin-right: 2px;" />
-          ))}
-          {halfStar && <star-half-filled style="color: #fadb14; margin-right: 2px;" />}
-          {Array(emptyStars).fill().map((_, i) => (
-            <star-outlined key={`empty-${i}`} style="color: #fadb14; margin-right: 2px;" />
-          ))}
-          <span style="margin-left: 4px;">{text}</span>
-        </div>
-      );
+      return text ? `${text}分` : '-';
     }
   },
   {
-    title: '状态',
-    dataIndex: 'status',
-    key: 'status',
-    width: 100,
-    customRender: ({ text }) => {
-      const statusColors = {
-        approved: 'success',
-        pending: 'processing',
-        rejected: 'error'
-      };
-      
-      const statusTexts = {
-        approved: '已通过',
-        pending: '待审核',
-        rejected: '已拒绝'
-      };
-      
-      return (
-        <a-tag color={statusColors[text]}>
-          {statusTexts[text] || text}
-        </a-tag>
-      );
-    }
+    title: '评论内容',
+    dataIndex: 'comment',
+    key: 'comment',
+    width: 300,
+    ellipsis: true
   },
   {
     title: '创建时间',
-    dataIndex: 'createTime',
-    key: 'createTime',
-    width: 180
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 180,
+    customRender: ({ text }) => {
+      return text ? dayjs(text).format('YYYY-MM-DD HH:mm') : '-';
+    }
+  },
+  {
+    title: '更新时间',
+    dataIndex: 'updatedAt',
+    key: 'updatedAt',
+    width: 180,
+    customRender: ({ text }) => {
+      return text ? dayjs(text).format('YYYY-MM-DD HH:mm') : '-';
+    }
   },
   {
     title: '操作',
     key: 'action',
     fixed: 'right',
-    width: 180
+    width: 180,
+    customRender: ({ record }) => (
+      <a-space>
+        <a-button type="link" size="small" onClick={() => handleViewComment(record)}>
+          查看
+        </a-button>
+        <a-button type="link" size="small" onClick={() => handleEdit(record)}>
+          编辑
+        </a-button>
+        <a-popconfirm
+          title="确定要删除这条评论吗？"
+          ok-text="是"
+          cancel-text="否"
+          onConfirm={() => handleDelete(record.id)}
+        >
+          <a-button type="link" danger size="small">
+            删除
+          </a-button>
+        </a-popconfirm>
+      </a-space>
+    )
   }
 ];
 
 // 获取评论列表数据
-const fetchComments = () => {
+const fetchComments = async () => {
   loading.value = true;
-  
-  // 模拟API请求
-  setTimeout(() => {
-    // 生成模拟数据
-    const mockData = [];
-    const total = 152; // 模拟总数
-    
-    for (let i = 1; i <= total; i++) {
-      const statusOptions = ['approved', 'pending', 'rejected'];
-      const status = statusOptions[Math.floor(Math.random() * statusOptions.length)];
-      
-      const randomMovieIndex = Math.floor(Math.random() * movies.length);
-      const movie = movies[randomMovieIndex];
-      
-      const randomUserIndex = Math.floor(Math.random() * users.length);
-      const user = users[randomUserIndex];
-      
-      const randomRating = (Math.random() * 2 + 3).toFixed(1); // 3.0-5.0之间的随机评分
-      
-      const commentTemplates = [
-        '这部电影真的很棒，剧情紧凑，演员表演出色！',
-        '画面很美，配乐也很棒，但是剧情有点拖沓。',
-        '非常感人的一部电影，看完之后久久不能平静。',
-        '演员的表演非常到位，特别是主角，演技炸裂。',
-        '这部电影节奏有点慢，但是细节处理得很好。',
-        '剧情设计很巧妙，结局也很惊喜，推荐观看。',
-        '特效做得很棒，但是故事情节有点薄弱。',
-        '配乐非常出色，为电影增色不少。',
-        '这部电影给我带来了很多思考，值得一看。',
-        '角色刻画得很深入，能让人产生共鸣。'
-      ];
-      
-      const randomComment = commentTemplates[Math.floor(Math.random() * commentTemplates.length)];
-      
-      // 随机生成1-3个月内的时间
-      const date = new Date();
-      date.setMonth(date.getMonth() - Math.floor(Math.random() * 3));
-      date.setDate(Math.floor(Math.random() * 28) + 1);
-      date.setHours(Math.floor(Math.random() * 24));
-      date.setMinutes(Math.floor(Math.random() * 60));
-      const createTime = date.toISOString().replace('T', ' ').substring(0, 19);
-      
-      mockData.push({
-        id: i,
-        userId: user.id,
-        username: user.username,
-        movieId: movie.id,
-        movieName: movie.title,
-        content: randomComment,
-        rating: parseFloat(randomRating),
-        status,
-        createTime
-      });
-    }
-    
-    // 筛选逻辑
-    let filteredData = [...mockData];
-    
-    if (filters.content) {
-      filteredData = filteredData.filter(comment => comment.content.includes(filters.content));
-    }
-    
-    if (filters.movieName) {
-      filteredData = filteredData.filter(comment => comment.movieName.includes(filters.movieName));
-    }
-    
-    if (filters.username) {
-      filteredData = filteredData.filter(comment => comment.username.includes(filters.username));
-    }
-    
-    if (filters.status) {
-      filteredData = filteredData.filter(comment => comment.status === filters.status);
-    }
-    
-    // 分页
-    const start = (pagination.current - 1) * pagination.pageSize;
-    const end = start + pagination.pageSize;
-    const paginatedData = filteredData.slice(start, end);
-    
-    commentList.value = paginatedData;
-    pagination.total = filteredData.length;
+  try {
+    const { data } = await axios.get('/movie-interactions', {
+      params: {
+        ...filters,
+        page: pagination.current - 1,
+        size: pagination.pageSize
+      }
+    });
+    commentList.value = data.content;
+    pagination.total = data.totalElements;
+  } catch (error) {
+    message.error('获取评论列表失败');
+    console.error('获取评论列表失败:', error);
+  } finally {
     loading.value = false;
-  }, 800);
+  }
 };
 
-// 表格分页、排序、筛选变化时的回调
+// 表格分页变化时的回调
 const handleTableChange = (pag) => {
   pagination.current = pag.current;
   pagination.pageSize = pag.pageSize;
@@ -253,43 +187,134 @@ const handleSearch = () => {
 
 // 重置筛选
 const handleReset = () => {
-  filters.content = '';
-  filters.movieName = '';
-  filters.username = '';
-  filters.status = undefined;
+  filters.userId = undefined;
+  filters.movieId = undefined;
   pagination.current = 1;
   fetchComments();
 };
 
 // 查看评论详情
-const handleView = (record) => {
-  console.log('查看评论详情：', record);
-  // TODO: 实现查看评论详情功能
+const handleViewComment = (record) => {
+  currentComment.value = record;
+  drawerVisible.value = true;
 };
 
-// 审核评论
-const handleApprove = (record) => {
-  console.log('审核通过评论：', record);
-  // TODO: 实现审核通过评论功能
-  fetchComments();
+// 关闭评论详情抽屉
+const onDrawerClose = () => {
+  drawerVisible.value = false;
+  currentComment.value = null;
 };
 
-// 拒绝评论
-const handleReject = (record) => {
-  console.log('拒绝评论：', record);
-  // TODO: 实现拒绝评论功能
-  fetchComments();
+// 打开编辑对话框
+const handleEdit = (record) => {
+  Object.assign(editForm, record);
+  editModalVisible.value = true;
+};
+
+// 关闭编辑对话框
+const onEditModalClose = () => {
+  editModalVisible.value = false;
+  Object.assign(editForm, {
+    id: null,
+    userId: null,
+    movieId: null,
+    comment: '',
+    rating: null
+  });
+};
+
+// 提交编辑
+const handleSubmitEdit = async () => {
+  if (!editForm.comment?.trim()) {
+    message.error('评论内容不能为空');
+    return;
+  }
+  if (editForm.rating && (editForm.rating < 1 || editForm.rating > 5)) {
+    message.error('评分必须在1-5之间');
+    return;
+  }
+
+  try {
+    await axios.put(`/movie-interactions/user/${editForm.userId}/movie/${editForm.movieId}`, {
+      comment: editForm.comment.trim(),
+      rating: editForm.rating
+    });
+    message.success('更新成功');
+    editModalVisible.value = false;
+    fetchComments();
+  } catch (error) {
+    message.error('更新失败');
+    console.error('更新失败:', error);
+  }
 };
 
 // 删除评论
-const handleDelete = (record) => {
-  console.log('删除评论：', record);
-  // TODO: 实现删除评论功能
-  fetchComments();
+const handleDelete = async (id) => {
+  try {
+    await axios.delete(`/movie-interactions/${id}`);
+    message.success('删除成功');
+    fetchComments();
+  } catch (error) {
+    message.error('删除失败');
+    console.error('删除失败:', error);
+  }
+};
+
+// 打开新增对话框
+const handleAdd = () => {
+  addModalVisible.value = true;
+};
+
+// 关闭新增对话框
+const onAddModalClose = () => {
+  addModalVisible.value = false;
+  Object.assign(addForm, {
+    userId: null,
+    movieId: null,
+    comment: '',
+    rating: null,
+    liked: false
+  });
+};
+
+// 提交新增
+const handleSubmitAdd = async () => {
+  if (!addForm.userId) {
+    message.error('请输入用户ID');
+    return;
+  }
+  if (!addForm.movieId) {
+    message.error('请输入电影ID');
+    return;
+  }
+  if (!addForm.comment?.trim()) {
+    message.error('评论内容不能为空');
+    return;
+  }
+  if (addForm.rating && (addForm.rating < 1 || addForm.rating > 5)) {
+    message.error('评分必须在1-5之间');
+    return;
+  }
+
+  try {
+    await axios.put(`/movie-interactions/user/${addForm.userId}/movie/${addForm.movieId}`, {
+      comment: addForm.comment.trim(),
+      rating: addForm.rating,
+      liked: addForm.liked
+    });
+    message.success('添加成功');
+    addModalVisible.value = false;
+    fetchComments();
+  } catch (error) {
+    message.error('添加失败');
+    console.error('添加失败:', error);
+  }
 };
 
 onMounted(() => {
   fetchComments();
+  getMovies()
+  getUsers()
 });
 </script>
 
@@ -297,34 +322,42 @@ onMounted(() => {
   <div class="comments-container page-container">
     <div class="content-card">
       <div class="comments-header">
-        <h2>评论管理</h2>
+        <div class="header-title">
+          <h2>评论管理</h2>
+        </div>
+        <div class="header-actions">
+          <a-button type="primary" @click="handleAdd">
+            新增评论
+          </a-button>
+        </div>
       </div>
       
       <!-- 筛选表单 -->
       <div class="filter-form">
         <a-form layout="inline">
-          <a-form-item label="评论内容">
-            <a-input v-model:value="filters.content" placeholder="请输入评论内容" allowClear />
-          </a-form-item>
-          
-          <a-form-item label="电影名称">
-            <a-input v-model:value="filters.movieName" placeholder="请输入电影名称" allowClear />
-          </a-form-item>
-          
-          <a-form-item label="用户名">
-            <a-input v-model:value="filters.username" placeholder="请输入用户名" allowClear />
-          </a-form-item>
-          
-          <a-form-item label="状态">
+          <a-form-item label="选择用户">
             <a-select
-              v-model:value="filters.status"
-              placeholder="请选择状态"
-              style="width: 120px"
-              allowClear
-              :options="commentStatusOptions"
-            />
+              v-model:value="filters.userId"
+              placeholder="请选择用户"
+            >
+              <a-select-option v-for="user in users" :key="user.value" :value="user.value">
+                {{ user.label }}
+              </a-select-option>
+            </a-select>
           </a-form-item>
+      
           
+          <a-form-item label="选择电影">
+            <a-select
+              v-model:value="filters.movieId"
+              placeholder="请选择电影"
+            >
+              <a-select-option v-for="movie in movies" :key="movie.value" :value="movie.value">
+                {{ movie.label }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+        
           <a-form-item>
             <a-space>
               <a-button type="primary" @click="handleSearch">查询</a-button>
@@ -343,35 +376,136 @@ onMounted(() => {
         @change="handleTableChange"
         row-key="id"
         scroll={{ x: 1200 }}
+      />
+      
+      <!-- 评论详情抽屉 -->
+      <a-drawer
+        title="评论详情"
+        :width="500"
+        :open="drawerVisible"
+        @close="onDrawerClose"
+        :body-style="{ paddingBottom: '80px' }"
       >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'action'">
-            <a-space>
-              <a-button type="link" size="small" @click="() => handleView(record)">查看</a-button>
-              
-              <template v-if="record.status === 'pending'">
-                <a-button type="link" size="small" @click="() => handleApprove(record)">通过</a-button>
-                <a-button type="link" danger size="small" @click="() => handleReject(record)">拒绝</a-button>
-              </template>
-              
-              <a-popconfirm
-                title="确定要删除这条评论吗?"
-                ok-text="是"
-                cancel-text="否"
-                @confirm="() => handleDelete(record)"
-              >
-                <a-button type="link" danger size="small">删除</a-button>
-              </a-popconfirm>
-            </a-space>
-          </template>
+        <template v-if="currentComment">
+          <a-descriptions bordered :column="1">
+            <a-descriptions-item label="评论ID">{{ currentComment.id }}</a-descriptions-item>
+            <a-descriptions-item label="用户">{{ currentComment.userId }}</a-descriptions-item>
+            <a-descriptions-item label="电影">{{ currentComment.movieId }}</a-descriptions-item>
+            <a-descriptions-item label="评分">{{ currentComment.rating ? `${currentComment.rating}分` : '-' }}</a-descriptions-item>
+            <a-descriptions-item label="评论内容">{{ currentComment.comment || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="创建时间">
+              {{ currentComment.createdAt ? dayjs(currentComment.createdAt).format('YYYY-MM-DD HH:mm') : '-' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="更新时间">
+              {{ currentComment.updatedAt ? dayjs(currentComment.updatedAt).format('YYYY-MM-DD HH:mm') : '-' }}
+            </a-descriptions-item>
+          </a-descriptions>
         </template>
-      </a-table>
+      </a-drawer>
+
+      <!-- 编辑评论对话框 -->
+      <a-modal
+        title="编辑评论"
+        :open="editModalVisible"
+        @ok="handleSubmitEdit"
+        @cancel="onEditModalClose"
+        :confirmLoading="loading"
+      >
+        <a-form :model="editForm" layout="vertical">
+          <a-form-item label="评分">
+            <a-input-number
+              v-model:value="editForm.rating"
+              :min="1"
+              :max="5"
+              placeholder="请输入评分(1-5)"
+              style="width: 100%"
+            />
+          </a-form-item>
+          <a-form-item label="评论内容">
+            <a-textarea
+              v-model:value="editForm.comment"
+              :rows="4"
+              placeholder="请输入评论内容"
+              :maxLength="1000"
+              showCount
+            />
+          </a-form-item>
+        </a-form>
+      </a-modal>
+
+      <!-- 新增评论对话框 -->
+      <a-modal
+        title="新增评论"
+        :open="addModalVisible"
+        @ok="handleSubmitAdd"
+        @cancel="onAddModalClose"
+        :confirmLoading="loading"
+      >
+        <a-form :model="addForm" layout="vertical">
+          <a-form-item 
+            label="选择用户" 
+            required
+            :rules="[{ required: true, message: '请选择用户' }]"
+          >
+          <a-select
+              v-model:value="addForm.userId"
+              placeholder="请选择用户"
+            >
+              <a-select-option v-for="user in users" :key="user.value" :value="user.value">
+                {{ user.label }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item 
+            label="选择电影"
+            required
+            :rules="[{ required: true, message: '请选择电影' }]"
+          >
+            <a-select
+              v-model:value="addForm.movieId"
+              placeholder="请选择电影"
+            >
+              <a-select-option v-for="movie in movies" :key="movie.value" :value="movie.value">
+                {{ movie.label }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item label="评分">
+            <a-input-number
+              v-model:value="addForm.rating"
+              :min="1"
+              :max="5"
+              placeholder="请输入评分(1-5)"
+              style="width: 100%"
+            />
+          </a-form-item>
+          <a-form-item 
+            label="评论内容"
+            required
+            :rules="[{ required: true, message: '请输入评论内容' }]"
+          >
+            <a-textarea
+              v-model:value="addForm.comment"
+              :rows="4"
+              placeholder="请输入评论内容"
+              :maxLength="1000"
+              showCount
+            />
+          </a-form-item>
+          <a-form-item label="点赞状态">
+            <a-switch v-model:checked="addForm.liked" />
+          </a-form-item>
+        </a-form>
+      </a-modal>
     </div>
   </div>
 </template>
 
 <style scoped>
 .comments-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 24px;
 }
 
@@ -385,7 +519,20 @@ onMounted(() => {
   overflow-x: auto !important;
 }
 
+.ant-select {
+  width: 100%;
+}
+
 @media (max-width: 768px) {
+  .comments-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .header-actions {
+    margin-top: 16px;
+  }
+  
   .filter-form :deep(.ant-form-item) {
     margin-bottom: 16px;
   }

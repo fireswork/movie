@@ -35,12 +35,6 @@ const router = createRouter({
       meta: { title: '电影库' },
     },
     {
-      path: '/movie/:id',
-      name: 'movie-detail',
-      component: () => import('../views/user/MovieDetailView.vue'),
-      meta: { title: '电影详情' },
-    },
-    {
       path: '/collection',
       name: 'collection',
       component: () => import('../views/user/CollectionView.vue'),

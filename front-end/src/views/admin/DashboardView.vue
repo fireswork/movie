@@ -225,10 +225,6 @@ onMounted(() => {
                 <div class="overview-item">
                   <div class="overview-item-title">注册用户数</div>
                   <div class="overview-item-value">{{ formatNumber(overviewData.userCount) }}</div>
-                  <div class="overview-item-footer">
-                    <span>今日新增：</span>
-                    <a-tag color="green">+{{ overviewData.todayNewUsers }}</a-tag>
-                  </div>
                 </div>
               </a-card>
             </a-col>
@@ -238,10 +234,6 @@ onMounted(() => {
                 <div class="overview-item">
                   <div class="overview-item-title">电影总数</div>
                   <div class="overview-item-value">{{ formatNumber(overviewData.movieCount) }}</div>
-                  <div class="overview-item-footer">
-                    <span>类型分布：</span>
-                    <a-tag color="blue">7种</a-tag>
-                  </div>
                 </div>
               </a-card>
             </a-col>
@@ -251,10 +243,6 @@ onMounted(() => {
                 <div class="overview-item">
                   <div class="overview-item-title">订单总数</div>
                   <div class="overview-item-value">{{ formatNumber(overviewData.orderCount) }}</div>
-                  <div class="overview-item-footer">
-                    <span>今日新增：</span>
-                    <a-tag color="green">+{{ overviewData.todayNewOrders }}</a-tag>
-                  </div>
                 </div>
               </a-card>
             </a-col>
@@ -265,10 +253,6 @@ onMounted(() => {
                   <div class="overview-item-title">今日销售额</div>
                   <div class="overview-item-value">
                     {{ formatCurrency(overviewData.todayIncome) }}
-                  </div>
-                  <div class="overview-item-footer">
-                    <span>转化率：</span>
-                    <a-tag color="orange">{{ overviewData.conversion }}%</a-tag>
                   </div>
                 </div>
               </a-card>
