@@ -143,6 +143,12 @@ const fetchRegions = async () => {
   }
 }
 
+// 根据地区ID获取地区名称
+const getRegionName = (regionId) => {
+  const region = regions.value.find(r => r.value === String(regionId))
+  return region ? region.label : '未知地区'
+}
+
 // 获取所有电影的互动状态
 const fetchAllInteractions = async () => {
   try {
@@ -488,7 +494,7 @@ onMounted(() => {
             <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
             <p class="movie-meta text-ellipsis">{{ movie.duration }}分钟 | {{ movie.year }}</p>
             <p class="movie-actors text-ellipsis">{{ movie.actors || '暂无主演信息' }}</p>
-            <p>{{  movie.region  }}</p>
+            <p>{{  getRegionName(movie.region)  }}</p>
             <div class="movie-footer">
               <div class="movie-stats">
                 <span class="play-count">播放: {{ movie.playCount }}</span>

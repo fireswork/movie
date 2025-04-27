@@ -2,141 +2,105 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { PlayCircleOutlined } from '@ant-design/icons-vue'
+import request from '@/services/request'
 
 const router = useRouter()
+
+const userInfo = JSON.parse(localStorage.getItem('user'))
 
 // 榜单类型
 const rankingTypes = [
   { key: 'rating', name: '评分榜' },
-  { key: 'popularity', name: '热度榜' },
+  { key: 'popularity', name: '播放榜' },
 ]
 
 const activeType = ref('rating')
 
-// 模拟榜单数据
-const ratingRanking = ref([
-  {
-    id: 1,
-    title: '肖申克的救赎',
-    cover: 'https://via.placeholder.com/300x450?text=肖申克的救赎',
-    rating: 9.7,
-    price: 15,
-    actors: ['蒂姆·罗宾斯', '摩根·弗里曼'],
-    categories: ['剧情', '犯罪'],
-    region: '美国',
-    year: 1994,
-  },
-  {
-    id: 2,
-    title: '霸王别姬',
-    cover: 'https://via.placeholder.com/300x450?text=霸王别姬',
-    rating: 9.6,
-    price: 12,
-    actors: ['张国荣', '巩俐'],
-    categories: ['剧情', '爱情'],
-    region: '中国香港',
-    year: 1993,
-  },
-  {
-    id: 3,
-    title: '阿甘正传',
-    cover: 'https://via.placeholder.com/300x450?text=阿甘正传',
-    rating: 9.5,
-    price: 14,
-    actors: ['汤姆·汉克斯', '罗宾·怀特'],
-    categories: ['剧情', '爱情'],
-    region: '美国',
-    year: 1994,
-  },
-  // 添加更多电影...
-])
+// 榜单数据
+const ratingRanking = ref([])
+const popularityRanking = ref([])
+const allMovies = ref([])
+const regions = ref([])
 
-for (let i = 4; i <= 20; i++) {
-  const randomRating = (9.5 - (i - 3) * 0.1).toFixed(1)
-  const randomPrice = Math.floor(Math.random() * 20) + 5
-
-  ratingRanking.value.push({
-    id: i,
-    title: `电影${i}`,
-    cover: `https://via.placeholder.com/300x450?text=电影${i}`,
-    rating: randomRating,
-    price: randomPrice,
-    actors: ['演员A', '演员B'],
-    categories: ['剧情'],
-    region: '美国',
-    year: 2000 + i,
-  })
+// 获取地区数据
+const fetchRegions = async () => {
+  try {
+    const { data } = await request.get('/regions')
+    regions.value = data
+  } catch (error) {
+    console.error('获取地区列表失败:', error)
+  }
 }
 
-const popularityRanking = ref([
-  {
-    id: 101,
-    title: '泰坦尼克号',
-    cover: 'https://via.placeholder.com/300x450?text=泰坦尼克号',
-    rating: 9.4,
-    price: 18,
-    actors: ['莱昂纳多·迪卡普里奥', '凯特·温斯莱特'],
-    categories: ['剧情', '爱情', '灾难'],
-    region: '美国',
-    year: 1997,
-    playCount: 24582,
-  },
-  {
-    id: 102,
-    title: '盗梦空间',
-    cover: 'https://via.placeholder.com/300x450?text=盗梦空间',
-    rating: 9.3,
-    price: 16,
-    actors: ['莱昂纳多·迪卡普里奥', '约瑟夫·高登-莱维特'],
-    categories: ['科幻', '悬疑', '冒险'],
-    region: '美国',
-    year: 2010,
-    playCount: 19876,
-  },
-  {
-    id: 103,
-    title: '星际穿越',
-    cover: 'https://via.placeholder.com/300x450?text=星际穿越',
-    rating: 9.2,
-    price: 17,
-    actors: ['马修·麦康纳', '安妮·海瑟薇'],
-    categories: ['科幻', '冒险'],
-    region: '美国',
-    year: 2014,
-    playCount: 18654,
-  },
-  // 添加更多电影...
-])
+// 根据地区ID获取地区名称
+const getRegionName = (regionId) => {
+  const region = regions.value.find(r => r.id === regionId)
+  return region ? region.name : '未知地区'
+}
 
-for (let i = 4; i <= 20; i++) {
-  const randomRating = (9.2 - (i - 3) * 0.1).toFixed(1)
-  const randomPrice = Math.floor(Math.random() * 20) + 5
-  const randomPlays = Math.floor(Math.random() * 10000) + 5000
+// 格式化价格显示
+const formatPrice = (movie) => {
+  if (movie.isFree) {
+    return '免费'
+  }
+  if (!movie.price && movie.price !== 0) {
+    return '待定价'
+  }
+  return `¥${movie.price.toFixed(2)}`
+}
 
-  popularityRanking.value.push({
-    id: 100 + i,
-    title: `热门电影${i}`,
-    cover: `https://via.placeholder.com/300x450?text=热门电影${i}`,
-    rating: randomRating,
-    price: randomPrice,
-    actors: ['演员A', '演员B'],
-    categories: ['动作'],
-    region: '美国',
-    year: 2000 + i,
-    playCount: randomPlays,
-  })
+// 获取所有电影数据
+const fetchMovies = async () => {
+  try {
+    const { data } = await request.get('/movies')
+    allMovies.value = data
+    // 按播放量排序
+    popularityRanking.value = [...data].sort((a, b) => b.playCount - a.playCount)
+  } catch (error) {
+    console.error('获取电影列表失败:', error)
+  }
+}
+
+// 获取评分榜数据
+const fetchRatingRanking = async () => {
+  try {
+    const [moviesRes, interactionsRes] = await Promise.all([
+      request.get('/movies'),
+      request.get(`/movie-interactions/user/${userInfo.userId}`)
+    ])
+    
+    // 创建电影ID到电影信息的映射
+    const movieMap = {}
+    moviesRes.data.forEach(movie => {
+      movieMap[movie.id] = movie
+    })
+    
+    // 过滤出有评分的互动记录，并按评分排序
+    const ratedMovies = interactionsRes.data
+      .filter(interaction => interaction.rating > 0)
+      .sort((a, b) => b.rating - a.rating)
+      .map(interaction => ({
+        ...movieMap[interaction.movieId],
+        userRating: interaction.rating
+      }))
+      .filter(movie => movie.id) // 过滤掉不存在的电影
+    
+    ratingRanking.value = ratedMovies
+  } catch (error) {
+    console.error('获取评分榜数据失败:', error)
+  }
 }
 
 const handleTypeChange = (type) => {
   activeType.value = type
 }
 
-const goToMovie = (id) => {
-  router.push(`/movie/${id}`)
-}
-
-onMounted(() => {
-  // 可以在这里加载榜单数据
+onMounted(async () => {
+  await Promise.all([
+    fetchMovies(),
+    fetchRatingRanking(),
+    fetchRegions()
+  ])
 })
 </script>
 
@@ -163,52 +127,52 @@ onMounted(() => {
             v-for="(movie, index) in ratingRanking"
             :key="movie.id"
             class="ranking-item"
-            @click="() => goToMovie(movie.id)"
           >
             <div class="ranking-number" :class="{ 'top-three': index < 3 }">{{ index + 1 }}</div>
             <div class="movie-cover-wrapper">
-              <img :src="movie.cover" alt="" class="movie-cover" />
+              <img :src="movie.coverBase64" alt="" class="movie-cover" />
             </div>
             <div class="movie-info">
               <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
               <p class="movie-meta text-ellipsis">
-                {{ movie.categories.join('/') }} | {{ movie.region }} | {{ movie.year }}
+                {{ getRegionName(movie.region) }} | {{ movie.year }}
               </p>
-              <p class="movie-actors text-ellipsis">{{ movie.actors.join(' / ') }}</p>
+              <p class="movie-actors text-ellipsis">{{ movie.actors }}</p>
               <div class="movie-rating">
-                <a-rate :value="movie.rating / 2" disabled allow-half :count="5" />
-                <span class="rating-value">{{ movie.rating }}</span>
+                <a-rate :value="movie.userRating" disabled allow-half :count="5" />
+                <span class="rating-value">{{ movie.userRating }}分</span>
               </div>
             </div>
-            <div class="movie-price price-tag">¥{{ movie.price }}</div>
+            <div class="movie-price" :class="{ free: movie.isFree }">{{ formatPrice(movie) }}</div>
           </div>
+          <div v-if="ratingRanking.length === 0" class="empty-tip">暂无评分数据</div>
         </template>
 
-        <!-- 热度榜 -->
+        <!-- 播放量榜 -->
         <template v-else-if="activeType === 'popularity'">
           <div
             v-for="(movie, index) in popularityRanking"
             :key="movie.id"
             class="ranking-item"
-            @click="() => goToMovie(movie.id)"
           >
             <div class="ranking-number" :class="{ 'top-three': index < 3 }">{{ index + 1 }}</div>
             <div class="movie-cover-wrapper">
-              <img :src="movie.cover" alt="" class="movie-cover" />
+              <img :src="movie.coverBase64" alt="" class="movie-cover" />
             </div>
             <div class="movie-info">
               <h3 class="movie-title text-ellipsis">{{ movie.title }}</h3>
               <p class="movie-meta text-ellipsis">
-                {{ movie.categories.join('/') }} | {{ movie.region }} | {{ movie.year }}
+                {{ getRegionName(movie.region) }} | {{ movie.year }}
               </p>
-              <p class="movie-actors text-ellipsis">{{ movie.actors.join(' / ') }}</p>
+              <p class="movie-actors text-ellipsis">{{ movie.actors }}</p>
               <div class="movie-play-count">
                 <play-circle-outlined />
-                <span>{{ movie.playCount }}</span>
+                <span>{{ movie.playCount }}次播放</span>
               </div>
             </div>
-            <div class="movie-price price-tag">¥{{ movie.price }}</div>
+            <div class="movie-price" :class="{ free: movie.isFree }">{{ formatPrice(movie) }}</div>
           </div>
+          <div v-if="popularityRanking.length === 0" class="empty-tip">暂无播放数据</div>
         </template>
       </div>
     </div>
@@ -305,9 +269,21 @@ onMounted(() => {
 .movie-price {
   margin-left: 16px;
   font-size: 16px;
-  width: 60px;
+  width: 80px;
   text-align: right;
   flex-shrink: 0;
+  color: #ff4d4f;
+}
+
+.movie-price.free {
+  color: #52c41a;
+}
+
+.empty-tip {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-color-secondary);
+  font-size: 14px;
 }
 
 @media (max-width: 768px) {
